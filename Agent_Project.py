@@ -10,6 +10,27 @@ from datetime import datetime
 
 # --- 1. 初始化設定 ---
 st.set_page_config(page_title="2026 AI 時尚顧問 (雲端版)", page_icon="☁️")
+
+# 隱藏 GitHub 圖示和其他 Streamlit 預設元素
+hide_streamlit_style = """
+<style>
+/* 隱藏 GitHub 圖示 */
+header[data-testid="stHeader"] {
+    display: none;
+}
+
+/* 隱藏右上角的工具列 */
+#MainMenu {visibility: hidden;}
+
+/* 隱藏頁尾 */
+footer {visibility: hidden;}
+
+/* 隱藏 "Deploy" 按鈕 */
+.stDeployButton {display: none;}
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 st.title("👗 AI 個人穿搭 Agent (Cloud)")
 
 # 初始化 session state - Streamlit 會在同一瀏覽器 session 中自動保持
