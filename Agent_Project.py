@@ -12,7 +12,7 @@ from datetime import datetime
 st.set_page_config(page_title="2026 AI 時尚顧問 (雲端版)", page_icon="☁️")
 st.title("👗 AI 個人穿搭 Agent (Cloud)")
 
-# 初始化 session state
+# 初始化 session state - Streamlit 會在同一瀏覽器 session 中自動保持
 if 'supabase_client' not in st.session_state:
     st.session_state.supabase_client = None
 if 'user_id' not in st.session_state:
@@ -273,6 +273,7 @@ def login_user(username, password):
 # 登入/註冊系統
 if not st.session_state.user_id:
     st.info("👋 請先登入或註冊以使用個人衣櫥")
+    st.caption("💡 提示: 在同一個瀏覽器視窗中,刷新頁面後會保持登入狀態")
     
     tab_login, tab_register = st.tabs(["🔑 登入", "📝 註冊"])
     
@@ -327,6 +328,7 @@ if not st.session_state.user_id:
 # 顯示已登入使用者
 st.sidebar.divider()
 st.sidebar.success(f"👤 目前使用者: **{st.session_state.username}**")
+st.sidebar.caption("🔒 在此瀏覽器視窗保持登入")
 if st.sidebar.button("🚪 登出", use_container_width=True):
     st.session_state.user_id = None
     st.session_state.username = None
@@ -487,6 +489,7 @@ with tab1:
     1. 拍攝清晰的單件衣服照片
     2. 背景簡潔有助於 AI 辨識
     3. 確保照片光線充足
+    4. 批量上傳可一次處理多件衣服
     """)
 
 with tab2:
@@ -635,12 +638,29 @@ with tab3:
 
 # --- 4. 底部資訊 ---
 st.divider()
-with st.expander("📋網頁說明"):
+with st.expander("📋 Supabase 資料表結構說明"):
     st.code("""
-此網頁是專題製作
+-- 使用者資料表
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 衣櫥資料表
+CREATE TABLE my_wardrobe (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    color TEXT NOT NULL,
+    style TEXT,
+    warmth INTEGER CHECK (warmth >= 1 AND warmth <= 10),
+    image_data TEXT,
+    user_id BIGINT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
     """, language="sql")
-    
+    st.caption("請在 Supabase 中建立這兩個資料表")
 
 st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini & Supabase")
-
