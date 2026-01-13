@@ -15,6 +15,10 @@ st.title("👗 AI 個人穿搭 Agent (Cloud)")
 # 初始化 session state
 if 'supabase_client' not in st.session_state:
     st.session_state.supabase_client = None
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+if 'username' not in st.session_state:
+    st.session_state.username = None
 
 # 嘗試從 Streamlit Secrets 讀取設定
 try:
@@ -180,10 +184,11 @@ def save_to_supabase(tags, img_bytes):
         # 將圖片轉為 base64
         img_base64 = base64.b64encode(img_bytes).decode('utf-8')
         
-        # 準備資料
+        # 準備資料(加上 user_id)
         data = {
             **tags,
             "image_data": img_base64,
+            "user_id": st.session_state.user_id,
             "created_at": datetime.now().isoformat()
         }
         
@@ -196,24 +201,136 @@ def save_to_supabase(tags, img_bytes):
         return False, str(e)
 
 def get_wardrobe():
-    """從 Supabase 讀取衣櫥"""
+    """從 Supabase 讀取該使用者的衣櫥"""
     try:
-        response = st.session_state.supabase_client.table("my_wardrobe").select("*").order("created_at", desc=True).execute()
+        response = st.session_state.supabase_client.table("my_wardrobe")\
+            .select("*")\
+            .eq("user_id", st.session_state.user_id)\
+            .order("created_at", desc=True)\
+            .execute()
         return response.data
     except Exception as e:
         st.error(f"讀取衣櫥失敗: {str(e)}")
         return []
 
 def delete_item(item_id):
-    """刪除衣服"""
+    """刪除衣服(確保是該使用者的)"""
     try:
-        st.session_state.supabase_client.table("my_wardrobe").delete().eq("id", item_id).execute()
+        st.session_state.supabase_client.table("my_wardrobe")\
+            .delete()\
+            .eq("id", item_id)\
+            .eq("user_id", st.session_state.user_id)\
+            .execute()
         return True
     except Exception as e:
         st.error(f"刪除失敗: {str(e)}")
         return False
 
+def register_user(username, password):
+    """註冊新使用者"""
+    try:
+        # 檢查使用者是否已存在
+        existing = st.session_state.supabase_client.table("users")\
+            .select("*")\
+            .eq("username", username)\
+            .execute()
+        
+        if existing.data:
+            return False, "使用者名稱已存在"
+        
+        # 建立新使用者
+        data = {
+            "username": username,
+            "password": password,  # 實際應用應該加密!
+            "created_at": datetime.now().isoformat()
+        }
+        
+        result = st.session_state.supabase_client.table("users").insert(data).execute()
+        return True, result.data[0]['id']
+        
+    except Exception as e:
+        return False, str(e)
+
+def login_user(username, password):
+    """使用者登入"""
+    try:
+        result = st.session_state.supabase_client.table("users")\
+            .select("*")\
+            .eq("username", username)\
+            .eq("password", password)\
+            .execute()
+        
+        if result.data:
+            return True, result.data[0]['id']
+        else:
+            return False, "帳號或密碼錯誤"
+            
+    except Exception as e:
+        return False, str(e)
+
 # --- 3. 介面操作 ---
+
+# 登入/註冊系統
+if not st.session_state.user_id:
+    st.info("👋 請先登入或註冊以使用個人衣櫥")
+    
+    tab_login, tab_register = st.tabs(["🔑 登入", "📝 註冊"])
+    
+    with tab_login:
+        with st.form("login_form"):
+            st.subheader("登入帳號")
+            login_username = st.text_input("使用者名稱", key="login_user")
+            login_password = st.text_input("密碼", type="password", key="login_pass")
+            login_button = st.form_submit_button("登入", use_container_width=True)
+            
+            if login_button:
+                if not st.session_state.supabase_client:
+                    st.error("請先在左側設定 Supabase 連接")
+                elif not login_username or not login_password:
+                    st.warning("請輸入使用者名稱和密碼")
+                else:
+                    success, result = login_user(login_username, login_password)
+                    if success:
+                        st.session_state.user_id = result
+                        st.session_state.username = login_username
+                        st.success(f"歡迎回來, {login_username}! 🎉")
+                        st.rerun()
+                    else:
+                        st.error(f"登入失敗: {result}")
+    
+    with tab_register:
+        with st.form("register_form"):
+            st.subheader("註冊新帳號")
+            reg_username = st.text_input("使用者名稱", key="reg_user")
+            reg_password = st.text_input("密碼", type="password", key="reg_pass")
+            reg_password2 = st.text_input("確認密碼", type="password", key="reg_pass2")
+            register_button = st.form_submit_button("註冊", use_container_width=True)
+            
+            if register_button:
+                if not st.session_state.supabase_client:
+                    st.error("請先在左側設定 Supabase 連接")
+                elif not reg_username or not reg_password:
+                    st.warning("請輸入使用者名稱和密碼")
+                elif reg_password != reg_password2:
+                    st.error("兩次密碼輸入不一致")
+                elif len(reg_password) < 6:
+                    st.warning("密碼至少需要 6 個字元")
+                else:
+                    success, result = register_user(reg_username, reg_password)
+                    if success:
+                        st.success("註冊成功! 請登入 ✅")
+                    else:
+                        st.error(f"註冊失敗: {result}")
+    
+    st.stop()
+
+# 顯示已登入使用者
+st.sidebar.divider()
+st.sidebar.success(f"👤 目前使用者: **{st.session_state.username}**")
+if st.sidebar.button("🚪 登出", use_container_width=True):
+    st.session_state.user_id = None
+    st.session_state.username = None
+    st.rerun()
 
 # 檢查必要設定
 def check_setup(need_weather=False):
