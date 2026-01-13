@@ -635,19 +635,12 @@ with tab3:
 
 # --- 4. 底部資訊 ---
 st.divider()
-with st.expander("📋 Supabase 資料表結構說明"):
+with st.expander("📋網頁說明"):
     st.code("""
-CREATE TABLE my_wardrobe (
-    id BIGSERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    category TEXT NOT NULL,
-    color TEXT NOT NULL,
-    style TEXT,
-    warmth INTEGER CHECK (warmth >= 1 AND warmth <= 10),
-    image_data TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+此網頁是專題製作
 );
     """, language="sql")
-    st.caption("請在 Supabase 中建立此資料表")
+    
 
 st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini & Supabase")
+
