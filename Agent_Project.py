@@ -65,7 +65,46 @@ with st.sidebar:
             st.error(f"❌ Supabase 連接失敗: {str(e)}")
     
     st.divider()
-    city = st.text_input("城市名稱", value=default_city, help="英文城市名,如: Tokyo, London")
+    
+    # 台灣城市選單
+    taiwan_cities = {
+        "台北 (Taipei)": "Taipei",
+        "新北 (New Taipei)": "New Taipei",
+        "桃園 (Taoyuan)": "Taoyuan",
+        "台中 (Taichung)": "Taichung",
+        "台南 (Tainan)": "Tainan",
+        "高雄 (Kaohsiung)": "Kaohsiung",
+        "基隆 (Keelung)": "Keelung",
+        "新竹 (Hsinchu)": "Hsinchu",
+        "苗栗 (Miaoli)": "Miaoli",
+        "彰化 (Changhua)": "Changhua",
+        "南投 (Nantou)": "Nantou",
+        "雲林 (Yunlin)": "Yunlin",
+        "嘉義 (Chiayi)": "Chiayi",
+        "屏東 (Pingtung)": "Pingtung",
+        "宜蘭 (Yilan)": "Yilan",
+        "花蓮 (Hualien)": "Hualien",
+        "台東 (Taitung)": "Taitung",
+        "澎湖 (Penghu)": "Penghu",
+        "金門 (Kinmen)": "Kinmen",
+        "馬祖 (Matsu)": "Matsu"
+    }
+    
+    # 判斷預設城市
+    default_display = "台北 (Taipei)"
+    for display, english in taiwan_cities.items():
+        if english.lower() == default_city.lower():
+            default_display = display
+            break
+    
+    city_display = st.selectbox(
+        "選擇城市", 
+        options=list(taiwan_cities.keys()),
+        index=list(taiwan_cities.keys()).index(default_display),
+        help="選擇台灣縣市以獲取天氣資訊"
+    )
+    
+    city = taiwan_cities[city_display]
 
 # --- 2. 核心功能函數 ---
 
@@ -95,7 +134,7 @@ def auto_tagging(img_bytes, api_key):
     """AI 自動標籤衣服"""
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-pro-vision')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -340,7 +379,7 @@ with tab3:
         with st.spinner("AI 時尚顧問正在為您搭配..."):
             try:
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('gemini-pro')
                 
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
