@@ -351,43 +351,135 @@ tab1, tab2, tab3 = st.tabs(["📸 上傳入庫", "👔 我的衣櫥", "💡 今�
 with tab1:
     st.header("上傳新衣到雲端")
     
-    uploaded_file = st.file_uploader("選取衣服照片...", type=["jpg", "png", "jpeg"])
+    # 選擇上傳模式
+    upload_mode = st.radio(
+        "上傳模式",
+        ["單張上傳", "批量上傳"],
+        horizontal=True
+    )
     
-    if uploaded_file:
-        img = Image.open(uploaded_file)
+    if upload_mode == "單張上傳":
+        uploaded_file = st.file_uploader("選取衣服照片...", type=["jpg", "png", "jpeg"])
         
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            st.image(img, caption="預覽", use_container_width=True)
+        if uploaded_file:
+            img = Image.open(uploaded_file)
+            
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.image(img, caption="預覽", use_container_width=True)
+            
+            with col2:
+                if st.button("🤖 AI 辨識並存入資料庫", type="primary", use_container_width=True):
+                    if not check_setup():
+                        st.stop()
+                    
+                    with st.spinner("AI 正在分析衣服..."):
+                        # 轉換圖片
+                        img_byte_arr = io.BytesIO()
+                        img.save(img_byte_arr, format='JPEG')
+                        img_bytes = img_byte_arr.getvalue()
+                        
+                        # AI 辨識
+                        tags = auto_tagging(img_bytes, google_key)
+                        
+                        if tags:
+                            # 顯示辨識結果
+                            st.success("✅ AI 辨識完成!")
+                            st.json(tags)
+                            
+                            # 存入資料庫
+                            with st.spinner("正在存入雲端..."):
+                                success, result = save_to_supabase(tags, img_bytes)
+                                
+                                if success:
+                                    st.success(f"🎉 已存入雲端: **{tags['name']}**")
+                                    st.balloons()
+                                else:
+                                    st.error(f"存入失敗: {result}")
+    
+    else:  # 批量上傳
+        uploaded_files = st.file_uploader(
+            "選取多張衣服照片...", 
+            type=["jpg", "png", "jpeg"],
+            accept_multiple_files=True
+        )
         
-        with col2:
-            if st.button("🤖 AI 辨識並存入資料庫", type="primary", use_container_width=True):
+        if uploaded_files:
+            st.info(f"已選擇 {len(uploaded_files)} 張照片")
+            
+            # 預覽所有圖片
+            with st.expander("📷 預覽所有照片", expanded=True):
+                cols = st.columns(4)
+                for idx, file in enumerate(uploaded_files):
+                    with cols[idx % 4]:
+                        img = Image.open(file)
+                        st.image(img, caption=file.name, use_container_width=True)
+            
+            # 批量處理按鈕
+            if st.button("🚀 批量辨識並上傳全部", type="primary", use_container_width=True):
                 if not check_setup():
                     st.stop()
                 
-                with st.spinner("AI 正在分析衣服..."):
-                    # 轉換圖片
-                    img_byte_arr = io.BytesIO()
-                    img.save(img_byte_arr, format='JPEG')
-                    img_bytes = img_byte_arr.getvalue()
+                # 建立進度條
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                success_count = 0
+                fail_count = 0
+                
+                for idx, file in enumerate(uploaded_files):
+                    # 更新進度
+                    progress = (idx + 1) / len(uploaded_files)
+                    progress_bar.progress(progress)
+                    status_text.text(f"處理中: {file.name} ({idx + 1}/{len(uploaded_files)})")
                     
-                    # AI 辨識
-                    tags = auto_tagging(img_bytes, google_key)
-                    
-                    if tags:
-                        # 顯示辨識結果
-                        st.success("✅ AI 辨識完成!")
-                        st.json(tags)
+                    try:
+                        # 讀取圖片
+                        img = Image.open(file)
+                        img_byte_arr = io.BytesIO()
+                        img.save(img_byte_arr, format='JPEG')
+                        img_bytes = img_byte_arr.getvalue()
                         
-                        # 存入資料庫
-                        with st.spinner("正在存入雲端..."):
+                        # AI 辨識
+                        tags = auto_tagging(img_bytes, google_key)
+                        
+                        if tags:
+                            # 存入資料庫
                             success, result = save_to_supabase(tags, img_bytes)
                             
                             if success:
-                                st.success(f"🎉 已存入雲端: **{tags['name']}**")
-                                st.balloons()
+                                success_count += 1
+                                st.success(f"✅ {file.name} → {tags['name']}")
                             else:
-                                st.error(f"存入失敗: {result}")
+                                fail_count += 1
+                                st.error(f"❌ {file.name} 存入失敗: {result}")
+                        else:
+                            fail_count += 1
+                            st.error(f"❌ {file.name} 辨識失敗")
+                    
+                    except Exception as e:
+                        fail_count += 1
+                        st.error(f"❌ {file.name} 處理失敗: {str(e)}")
+                
+                # 完成總結
+                progress_bar.progress(1.0)
+                status_text.empty()
+                
+                st.divider()
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("📊 總數", len(uploaded_files))
+                with col2:
+                    st.metric("✅ 成功", success_count)
+                with col3:
+                    st.metric("❌ 失敗", fail_count)
+                
+                if success_count > 0:
+                    st.balloons()
+                    st.success(f"🎉 批量上傳完成! 成功 {success_count} 件")
+                
+                if fail_count > 0:
+                    st.warning(f"⚠️ 有 {fail_count} 件上傳失敗,請檢查後重試")
     
     st.divider()
     st.info("""
