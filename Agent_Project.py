@@ -6,7 +6,7 @@ from PIL import Image
 import io
 from supabase import create_client, Client
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 import time
 
@@ -35,6 +35,12 @@ if 'username' not in st.session_state:
     st.session_state.username = None
 if 'last_request_time' not in st.session_state:
     st.session_state.last_request_time = 0
+if 'weather_data' not in st.session_state:
+    st.session_state.weather_data = None
+if 'weather_update_time' not in st.session_state:
+    st.session_state.weather_update_time = None
+if 'selected_city' not in st.session_state:
+    st.session_state.selected_city = None
 
 # 嘗試從 Streamlit Secrets 讀取設定
 try:
@@ -95,44 +101,90 @@ with st.sidebar:
         - 建議每批 5-10 張
         """)
     
-    # 台灣城市選單
-    taiwan_cities = {
-        "台北 (Taipei)": "Taipei",
-        "新北 (New Taipei)": "New Taipei",
-        "桃園 (Taoyuan)": "Taoyuan",
-        "台中 (Taichung)": "Taichung",
-        "台南 (Tainan)": "Tainan",
-        "高雄 (Kaohsiung)": "Kaohsiung",
-        "基隆 (Keelung)": "Keelung",
-        "新竹 (Hsinchu)": "Hsinchu",
-        "苗栗 (Miaoli)": "Miaoli",
-        "彰化 (Changhua)": "Changhua",
-        "南投 (Nantou)": "Nantou",
-        "雲林 (Yunlin)": "Yunlin",
-        "嘉義 (Chiayi)": "Chiayi",
-        "屏東 (Pingtung)": "Pingtung",
-        "宜蘭 (Yilan)": "Yilan",
-        "花蓮 (Hualien)": "Hualien",
-        "台東 (Taitung)": "Taitung",
-        "澎湖 (Penghu)": "Penghu",
-        "金門 (Kinmen)": "Kinmen",
-        "馬祖 (Matsu)": "Matsu"
-    }
-    
-    default_display = "台北 (Taipei)"
-    for display, english in taiwan_cities.items():
-        if english.lower() == default_city.lower():
-            default_display = display
-            break
-    
-    city_display = st.selectbox(
-        "選擇城市", 
-        options=list(taiwan_cities.keys()),
-        index=list(taiwan_cities.keys()).index(default_display),
-        help="選擇台灣縣市以獲取天氣資訊"
-    )
-    
-    city = taiwan_cities[city_display]
+    # 🆕 只在已登入時顯示城市選單和天氣
+    if st.session_state.user_id:
+        st.divider()
+        st.subheader("🌍 天氣設定")
+        
+        # 台灣城市選單
+        taiwan_cities = {
+            "台北 (Taipei)": "Taipei",
+            "新北 (New Taipei)": "New Taipei",
+            "桃園 (Taoyuan)": "Taoyuan",
+            "台中 (Taichung)": "Taichung",
+            "台南 (Tainan)": "Tainan",
+            "高雄 (Kaohsiung)": "Kaohsiung",
+            "基隆 (Keelung)": "Keelung",
+            "新竹 (Hsinchu)": "Hsinchu",
+            "苗栗 (Miaoli)": "Miaoli",
+            "彰化 (Changhua)": "Changhua",
+            "南投 (Nantou)": "Nantou",
+            "雲林 (Yunlin)": "Yunlin",
+            "嘉義 (Chiayi)": "Chiayi",
+            "屏東 (Pingtung)": "Pingtung",
+            "宜蘭 (Yilan)": "Yilan",
+            "花蓮 (Hualien)": "Hualien",
+            "台東 (Taitung)": "Taitung",
+            "澎湖 (Penghu)": "Penghu",
+            "金門 (Kinmen)": "Kinmen",
+            "馬祖 (Matsu)": "Matsu"
+        }
+        
+        default_display = "台北 (Taipei)"
+        for display, english in taiwan_cities.items():
+            if english.lower() == default_city.lower():
+                default_display = display
+                break
+        
+        city_display = st.selectbox(
+            "選擇城市", 
+            options=list(taiwan_cities.keys()),
+            index=list(taiwan_cities.keys()).index(default_display),
+            help="選擇台灣縣市以獲取天氣資訊",
+            key="city_selector"
+        )
+        
+        city = taiwan_cities[city_display]
+        
+        # 🆕 自動更新天氣 (1小時刷新一次)
+        if weather_key:
+            now = datetime.now()
+            need_update = False
+            
+            # 檢查是否需要更新天氣
+            if st.session_state.weather_data is None:
+                need_update = True
+            elif st.session_state.selected_city != city:
+                need_update = True
+                st.session_state.selected_city = city
+            elif st.session_state.weather_update_time is None:
+                need_update = True
+            elif (now - st.session_state.weather_update_time) > timedelta(hours=1):
+                need_update = True
+            
+            if need_update:
+                with st.spinner("更新天氣資訊..."):
+                    weather = get_weather(city, weather_key)
+                    if weather:
+                        st.session_state.weather_data = weather
+                        st.session_state.weather_update_time = now
+                        st.session_state.selected_city = city
+            
+            # 顯示天氣資訊
+            if st.session_state.weather_data:
+                st.success("📡 即時天氣")
+                weather = st.session_state.weather_data
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("🌡️", f"{weather['temp']}°C")
+                with col2:
+                    st.metric("🤔", f"{weather['feels_like']}°C")
+                st.caption(f"☁️ {weather['desc']}")
+                
+                # 顯示更新時間
+                if st.session_state.weather_update_time:
+                    update_time = st.session_state.weather_update_time.strftime("%H:%M")
+                    st.caption(f"更新時間: {update_time}")
 
 # --- 2. 核心功能函數 ---
 
@@ -141,7 +193,6 @@ def rate_limit_protection():
     current_time = time.time()
     time_since_last = current_time - st.session_state.last_request_time
     
-    # 如果距離上次請求不到 15 秒，就等待
     if time_since_last < 15:
         wait_time = 15 - time_since_last
         with st.spinner(f"⏳ API 速率保護中，等待 {int(wait_time)} 秒..."):
@@ -194,7 +245,7 @@ def auto_tagging(img_bytes, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -232,24 +283,13 @@ def auto_tagging(img_bytes, api_key):
         return None
 
 def batch_auto_tagging(img_bytes_list, api_key):
-    """
-    ✨ 批量 AI 自動標籤 - 一次分析多張衣服
-    
-    參數:
-        img_bytes_list: list of bytes - 多張圖片的 bytes 資料
-        api_key: str - Gemini API Key
-    
-    回傳:
-        list of dict - 每張圖片的標籤結果
-    """
+    """批量 AI 自動標籤 - 一次分析多張衣服"""
     try:
-        # ✅ API 速率保護 (整個批次只需要一次)
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
-        # 構建包含多張圖片的內容
         content_parts = [f"""請仔細分析這 {len(img_bytes_list)} 件衣服，為每件衣服分別回傳 JSON 格式的標籤。
 
 回傳格式必須是一個 JSON 陣列，包含 {len(img_bytes_list)} 個物件:
@@ -271,38 +311,31 @@ def batch_auto_tagging(img_bytes_list, api_key):
 4. 每個物件都必須包含所有 5 個欄位
 """]
         
-        # 添加所有圖片
         for img_bytes in img_bytes_list:
             content_parts.append({
                 "mime_type": "image/jpeg",
                 "data": img_bytes
             })
         
-        # 一次性發送請求
         response = model.generate_content(content_parts)
         
-        # 清理回應文字
         clean_text = response.text.strip()
         clean_text = clean_text.replace('```json', '').replace('```', '').strip()
         
-        # 解析 JSON 陣列
         tags_list = json.loads(clean_text)
         
-        # 驗證回傳格式
         if not isinstance(tags_list, list):
             raise ValueError("AI 回傳格式錯誤: 應為陣列")
         
         if len(tags_list) != len(img_bytes_list):
             raise ValueError(f"AI 回傳數量不符: 預期 {len(img_bytes_list)} 件，實際 {len(tags_list)} 件")
         
-        # 驗證每個物件的必要欄位
         required_fields = ['name', 'category', 'color', 'warmth']
         for idx, tags in enumerate(tags_list):
             for field in required_fields:
                 if field not in tags:
                     raise ValueError(f"第 {idx+1} 件衣服缺少必要欄位: {field}")
             
-            # 確保 warmth 是整數
             tags['warmth'] = int(tags['warmth'])
         
         return tags_list
@@ -402,7 +435,6 @@ def login_user(username, password):
 def register_user(username, password):
     """使用者註冊"""
     try:
-        # 檢查使用者名稱是否已存在
         existing = st.session_state.supabase_client.table("users")\
             .select("id")\
             .eq("username", username)\
@@ -411,7 +443,6 @@ def register_user(username, password):
         if existing.data:
             return False, "使用者名稱已存在"
         
-        # 創建新使用者
         result = st.session_state.supabase_client.table("users")\
             .insert({"username": username, "password": password})\
             .execute()
@@ -421,16 +452,39 @@ def register_user(username, password):
     except Exception as e:
         return False, str(e)
 
+def reset_password(username, new_password):
+    """重設密碼"""
+    try:
+        # 檢查使用者是否存在
+        result = st.session_state.supabase_client.table("users")\
+            .select("id")\
+            .eq("username", username)\
+            .execute()
+        
+        if not result.data:
+            return False, "使用者不存在"
+        
+        # 更新密碼
+        st.session_state.supabase_client.table("users")\
+            .update({"password": new_password})\
+            .eq("username", username)\
+            .execute()
+        
+        return True, "密碼重設成功"
+        
+    except Exception as e:
+        return False, str(e)
+
 # --- 3. 介面操作 ---
 
-# 登入/註冊系統
+# 🆕 登入/註冊系統 (改進版)
 if not st.session_state.user_id:
     st.info("👋 請先登入或註冊以使用個人衣櫥")
     
-    tab_login, tab_register = st.tabs(["🔑 登入", "📝 註冊"])
+    tab_login, tab_register, tab_forgot = st.tabs(["🔑 登入", "📝 註冊", "🔓 忘記密碼"])
     
     with tab_login:
-        with st.form("login_form"):
+        with st.form("login_form", clear_on_submit=True):
             st.subheader("登入帳號")
             login_username = st.text_input("使用者名稱", key="login_user")
             login_password = st.text_input("密碼", type="password", key="login_pass")
@@ -447,12 +501,13 @@ if not st.session_state.user_id:
                         st.session_state.user_id = result
                         st.session_state.username = login_username
                         st.success(f"歡迎回來, {login_username}! 🎉")
+                        time.sleep(0.5)
                         st.rerun()
                     else:
                         st.error(f"登入失敗: {result}")
     
     with tab_register:
-        with st.form("register_form"):
+        with st.form("register_form", clear_on_submit=True):
             st.subheader("註冊新帳號")
             reg_username = st.text_input("使用者名稱", key="reg_user")
             reg_password = st.text_input("密碼", type="password", key="reg_pass")
@@ -471,9 +526,42 @@ if not st.session_state.user_id:
                 else:
                     success, result = register_user(reg_username, reg_password)
                     if success:
-                        st.success("註冊成功! 請登入 ✅")
+                        st.success("註冊成功! 正在自動登入... ✅")
+                        # 🆕 註冊成功後自動登入
+                        time.sleep(1)
+                        login_success, user_id = login_user(reg_username, reg_password)
+                        if login_success:
+                            st.session_state.user_id = user_id
+                            st.session_state.username = reg_username
+                            st.rerun()
                     else:
                         st.error(f"註冊失敗: {result}")
+    
+    # 🆕 忘記密碼功能
+    with tab_forgot:
+        with st.form("forgot_form", clear_on_submit=True):
+            st.subheader("重設密碼")
+            st.caption("⚠️ 請輸入您的使用者名稱和新密碼")
+            forgot_username = st.text_input("使用者名稱", key="forgot_user")
+            new_password = st.text_input("新密碼", type="password", key="new_pass")
+            new_password2 = st.text_input("確認新密碼", type="password", key="new_pass2")
+            reset_button = st.form_submit_button("重設密碼", use_container_width=True)
+            
+            if reset_button:
+                if not st.session_state.supabase_client:
+                    st.error("請先在左側設定 Supabase 連接")
+                elif not forgot_username or not new_password:
+                    st.warning("請輸入使用者名稱和新密碼")
+                elif new_password != new_password2:
+                    st.error("兩次密碼輸入不一致")
+                elif len(new_password) < 6:
+                    st.warning("密碼至少需要 6 個字元")
+                else:
+                    success, message = reset_password(forgot_username, new_password)
+                    if success:
+                        st.success(f"{message} 請前往登入頁面 ✅")
+                    else:
+                        st.error(f"重設失敗: {message}")
     
     st.stop()
 
@@ -481,8 +569,12 @@ if not st.session_state.user_id:
 st.sidebar.divider()
 st.sidebar.success(f"👤 目前使用者: **{st.session_state.username}**")
 if st.sidebar.button("🚪 登出", use_container_width=True):
+    # 🆕 登出時清除所有狀態
     st.session_state.user_id = None
     st.session_state.username = None
+    st.session_state.weather_data = None
+    st.session_state.weather_update_time = None
+    st.session_state.selected_city = None
     st.rerun()
 
 # 檢查必要設定
@@ -549,7 +641,7 @@ with tab1:
                                 else:
                                     st.error(f"存入失敗: {result}")
     
-    else:  # ✨ 批量上傳 (優化版)
+    else:
         uploaded_files = st.file_uploader(
             "選取多張衣服照片（建議 5-10 張最佳）...", 
             type=["jpg", "png", "jpeg"],
@@ -557,7 +649,6 @@ with tab1:
         )
         
         if uploaded_files:
-            # 限制數量
             if len(uploaded_files) > 20:
                 st.error(f"❌ 一次最多只能上傳 20 張照片，您選擇了 {len(uploaded_files)} 張")
                 st.info("💡 請重新選擇不超過 20 張照片")
@@ -579,7 +670,6 @@ with tab1:
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                # ✅ 步驟 1: 準備所有圖片資料並過濾重複
                 status_text.text("📦 正在準備圖片資料...")
                 img_data_list = []
                 img_hash_list = []
@@ -593,7 +683,6 @@ with tab1:
                     img_bytes = img_byte_arr.getvalue()
                     img_hash = get_image_hash(img_bytes)
                     
-                    # 檢查重複
                     is_duplicate, existing_name = check_duplicate_image(img_hash)
                     if is_duplicate:
                         duplicate_count += 1
@@ -608,7 +697,6 @@ with tab1:
                     st.warning("所有圖片都已存在，沒有新圖片需要上傳")
                     st.stop()
                 
-                # ✅ 步驟 2: 批量 AI 辨識
                 progress_bar.progress(0.3)
                 status_text.text(f"🤖 AI 正在批量分析 {len(img_data_list)} 件衣服...")
                 st.info(f"⚡ 批量模式：{len(img_data_list)} 張圖片只需 1 次 API 呼叫（約 20-40 秒）")
@@ -621,7 +709,6 @@ with tab1:
                 
                 st.success(f"✅ AI 辨識完成! 共 {len(tags_list)} 件衣服")
                 
-                # ✅ 步驟 3: 逐一存入資料庫
                 progress_bar.progress(0.6)
                 status_text.text("💾 正在存入資料庫...")
                 
@@ -650,7 +737,6 @@ with tab1:
                 progress_bar.progress(1.0)
                 status_text.empty()
                 
-                # 顯示結果統計
                 st.divider()
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
@@ -683,7 +769,6 @@ with tab2:
     if not check_setup():
         st.stop()
     
-    # 批量刪除模式切換
     col1, col2 = st.columns([3, 1])
     with col1:
         if st.button("🔄 重新整理", use_container_width=True):
@@ -718,14 +803,12 @@ with tab2:
         
         st.divider()
         
-        # 批量刪除模式
         if st.session_state.batch_delete_mode:
             st.warning("🗑️ 批量刪除模式：勾選要刪除的衣服")
             
             if 'selected_items' not in st.session_state:
                 st.session_state.selected_items = []
             
-            # 全選/取消全選
             col1, col2, col3 = st.columns([1, 1, 4])
             with col1:
                 if st.button("☑️ 全選", use_container_width=True):
@@ -756,7 +839,6 @@ with tab2:
         for idx, item in enumerate(items):
             with cols[idx % 3]:
                 with st.container(border=True):
-                    # 批量刪除模式：顯示複選框
                     if st.session_state.batch_delete_mode:
                         is_selected = item['id'] in st.session_state.selected_items
                         if st.checkbox("選擇", value=is_selected, key=f"check_{item['id']}"):
@@ -766,7 +848,6 @@ with tab2:
                             if item['id'] in st.session_state.selected_items:
                                 st.session_state.selected_items.remove(item['id'])
                     
-                    # 顯示圖片
                     if 'image_data' in item and item['image_data']:
                         try:
                             img_bytes = base64.b64decode(item['image_data'])
@@ -775,14 +856,12 @@ with tab2:
                         except:
                             st.write("🖼️ 圖片載入失敗")
                     
-                    # 顯示資訊
                     st.subheader(item.get('name', '未命名'))
                     st.write(f"**類別:** {item.get('category', 'N/A')}")
                     st.write(f"**顏色:** {item.get('color', 'N/A')}")
                     st.write(f"**風格:** {item.get('style', 'N/A')}")
                     st.write(f"**保暖度:** {'🔥' * item.get('warmth', 0)}")
                     
-                    # 只在非批量模式顯示單個刪除按鈕
                     if not st.session_state.batch_delete_mode:
                         if st.button("🗑️ 刪除", key=f"del_{item.get('id')}", use_container_width=True):
                             if delete_item(item.get('id')):
@@ -794,12 +873,47 @@ with tab2:
 with tab3:
     st.header("今日穿搭推薦")
     
+    # 🆕 風格選單
+    style_options = {
+        "🇫🇷 法式優雅": "法式優雅風格，強調輕鬆隨性但精緻的搭配，色調以黑白灰為主，搭配經典單品如條紋衫、西裝外套、牛仔褲",
+        "🇺🇸 美式休閒": "美式休閒風格，強調舒適實用，常見單品包括 T-shirt、牛仔褲、運動鞋、棒球帽",
+        "🇬🇧 英倫紳士": "英倫紳士風格，講究剪裁與質感，常見格紋、西裝、風衣、皮鞋等正式單品",
+        "🎨 巴洛克華麗": "巴洛克風格，強調誇張華麗、金色裝飾、刺繡、蕾絲等繁複元素",
+        "💣 地雷系": "日系地雷系風格，以黑色為主，搭配蕾絲、蝴蝶結、哥德元素，呈現病嬌可愛感",
+        "🎮 宅男舒適": "宅男風格，強調舒適實用，寬鬆T恤、運動褲、帽T、球鞋為主",
+        "🌊 潮流街頭": "街頭潮流風格，強調個性與品牌，oversize、球鞋、帽子、配件等",
+        "💼 都會型男": "都會型男風格，簡約俐落，商務休閒兼具，重視品質與細節",
+        "🏃 運動機能": "運動機能風格，強調功能性與科技感，防水、透氣、速乾材質",
+        "🌸 韓系清新": "韓系風格，色調柔和，oversized、寬鬆剪裁、淺色系為主",
+        "🎭 暗黑哥德": "哥德風格，以黑色為主，皮革、鉚釘、十字架等元素，神秘感十足",
+        "🌈 多元混搭": "不限定風格，AI 將根據天氣與衣櫥自由搭配出創意組合"
+    }
+    
+    selected_style = st.selectbox(
+        "🎨 選擇穿搭風格",
+        options=list(style_options.keys()),
+        index=11,  # 預設為「多元混搭」
+        help="選擇您想要的穿搭風格，AI 會根據此風格進行推薦"
+    )
+    
+    style_description = style_options[selected_style]
+    
+    with st.expander("ℹ️ 風格說明", expanded=False):
+        st.info(style_description)
+    
     if st.button("✨ 獲取今日推薦", type="primary", use_container_width=True):
         if not check_setup(need_weather=True):
             st.stop()
         
-        with st.spinner("正在查詢天氣..."):
-            weather = get_weather(city, weather_key)
+        # 使用快取的天氣資料
+        if st.session_state.weather_data is None:
+            with st.spinner("正在查詢天氣..."):
+                weather = get_weather(st.session_state.selected_city or city, weather_key)
+                if weather:
+                    st.session_state.weather_data = weather
+                    st.session_state.weather_update_time = datetime.now()
+        
+        weather = st.session_state.weather_data
         
         with st.spinner("正在讀取衣櫥..."):
             wardrobe = get_wardrobe()
@@ -832,15 +946,19 @@ with tab3:
                 rate_limit_protection()
                 
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-3-flash-preview')
+                model = genai.GenerativeModel('gemini-2.0-flash-exp')
                 
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
                 
                 **天氣資訊:**
-                - 城市: {city}
+                - 城市: {st.session_state.selected_city or city}
                 - 溫度: {weather['temp']}°C (體感 {weather['feels_like']}°C)
                 - 天氣: {weather['desc']}
+                
+                **指定風格:**
+                {selected_style}
+                {style_description}
                 
                 **2026 流行趨勢:**
                 - 機能風格當道
@@ -851,10 +969,10 @@ with tab3:
                 {json.dumps(wardrobe_summary, ensure_ascii=False, indent=2)}
                 
                 **請提供:**
-                1. 推薦的完整穿搭組合 (從頭到腳)
-                2. 每件單品的選擇理由
-                3. 整體風格說明
-                4. 搭配小技巧
+                1. 推薦的完整穿搭組合 (從頭到腳)，必須符合指定的「{selected_style}」風格
+                2. 每件單品的選擇理由 (考慮天氣與風格)
+                3. 整體風格說明 (如何體現{selected_style}的特色)
+                4. 搭配小技巧 (針對此風格的進階建議)
                 
                 請用親切、專業的口吻回答,使用繁體中文。
                 """
@@ -862,6 +980,8 @@ with tab3:
                 response = model.generate_content(prompt)
                 
                 st.markdown("### 🎨 今日穿搭建議")
+                st.markdown(f"**風格主題:** {selected_style}")
+                st.divider()
                 st.markdown(response.text)
                 
                 st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
@@ -876,8 +996,9 @@ with tab3:
     **💡 推薦功能說明:**
     - 結合即時天氣與您的衣櫥
     - 考慮 2026 流行趨勢
+    - 支援 12 種風格選擇
     - 提供個人化穿搭建議
-    - 使用 Gemini 2.5 Flash 模型
+    - 使用 Gemini 2.0 Flash 模型
     """)
 
 # --- 4. 底部資訊 ---
@@ -911,7 +1032,4 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
     st.caption("⚠️ 請在 Supabase 中新增 image_hash 欄位和索引")
 
-st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini 2.5 Flash & Supabase")
-
-
-
+st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini 2.0 Flash & Supabase")
