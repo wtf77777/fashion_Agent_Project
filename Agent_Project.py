@@ -6,9 +6,10 @@ from PIL import Image
 import io
 from supabase import create_client, Client
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime
 import hashlib
 import time
+import re
 
 # --- 1. 初始化設定 ---
 st.set_page_config(page_title="2026 AI 時尚顧問 (雲端版)", page_icon="☁️")
@@ -35,12 +36,6 @@ if 'username' not in st.session_state:
     st.session_state.username = None
 if 'last_request_time' not in st.session_state:
     st.session_state.last_request_time = 0
-if 'weather_data' not in st.session_state:
-    st.session_state.weather_data = None
-if 'weather_update_time' not in st.session_state:
-    st.session_state.weather_update_time = None
-if 'selected_city' not in st.session_state:
-    st.session_state.selected_city = None
 
 # 嘗試從 Streamlit Secrets 讀取設定
 try:
@@ -58,29 +53,87 @@ except:
     supabase_key = ""
     default_city = "Taipei"
 
-# 🔧 預先定義台灣城市資料和預設城市
-TAIWAN_CITIES = {
-    "台北 (Taipei)": "Taipei",
-    "新北 (New Taipei)": "New Taipei",
-    "桃園 (Taoyuan)": "Taoyuan",
-    "台中 (Taichung)": "Taichung",
-    "台南 (Tainan)": "Tainan",
-    "高雄 (Kaohsiung)": "Kaohsiung",
-    "基隆 (Keelung)": "Keelung",
-    "新竹 (Hsinchu)": "Hsinchu",
-    "苗栗 (Miaoli)": "Miaoli",
-    "彰化 (Changhua)": "Changhua",
-    "南投 (Nantou)": "Nantou",
-    "雲林 (Yunlin)": "Yunlin",
-    "嘉義 (Chiayi)": "Chiayi",
-    "屏東 (Pingtung)": "Pingtung",
-    "宜蘭 (Yilan)": "Yilan",
-    "花蓮 (Hualien)": "Hualien",
-    "台東 (Taitung)": "Taitung",
-    "澎湖 (Penghu)": "Penghu",
-    "金門 (Kinmen)": "Kinmen",
-    "馬祖 (Matsu)": "Matsu"
-}
+with st.sidebar:
+    st.header("🔑 API 設定")
+    
+    if use_secrets:
+        st.success("✅ 使用雲端設定")
+        st.caption("API Keys 已從安全儲存區載入")
+        
+        if st.checkbox("🔧 手動覆寫設定"):
+            google_key = st.text_input("Gemini API Key", value=google_key, type="password")
+            weather_key = st.text_input("OpenWeather Key", value=weather_key, type="password")
+            supabase_url = st.text_input("Supabase URL", value=supabase_url)
+            supabase_key = st.text_input("Supabase Anon Key", value=supabase_key, type="password")
+    else:
+        st.info("💡 本地模式: 請輸入 API Keys")
+        google_key = st.text_input("Gemini API Key", type="password", help="前往 Google AI Studio 取得")
+        weather_key = st.text_input("OpenWeather Key", type="password", help="前往 openweathermap.org 註冊")
+        
+        st.divider()
+        st.subheader("☁️ Supabase 設定")
+        supabase_url = st.text_input("Supabase URL", help="格式: https://xxx.supabase.co")
+        supabase_key = st.text_input("Supabase Anon Key", type="password")
+    
+    # 連接 Supabase
+    if supabase_url and supabase_key:
+        try:
+            st.session_state.supabase_client = create_client(supabase_url, supabase_key)
+            if not use_secrets:
+                st.success("✅ Supabase 已連接")
+        except Exception as e:
+            st.error(f"❌ Supabase 連接失敗: {str(e)}")
+    
+    st.divider()
+    
+    # ⚠️ Gemini API 限制提醒
+    with st.expander("⚡ Gemini API 使用提醒", expanded=False):
+        st.success("""
+        **批量模式優勢：**
+        - ✅ 10 張圖 = 1 次 API 呼叫
+        - ✅ 大幅減少 RPM 限制風險
+        - ✅ 處理速度提升 10 倍
+        - 建議每批 5-10 張
+        """)
+    
+    # 台灣城市選單
+    taiwan_cities = {
+        "台北 (Taipei)": "Taipei",
+        "新北 (New Taipei)": "New Taipei",
+        "桃園 (Taoyuan)": "Taoyuan",
+        "台中 (Taichung)": "Taichung",
+        "台南 (Tainan)": "Tainan",
+        "高雄 (Kaohsiung)": "Kaohsiung",
+        "基隆 (Keelung)": "Keelung",
+        "新竹 (Hsinchu)": "Hsinchu",
+        "苗栗 (Miaoli)": "Miaoli",
+        "彰化 (Changhua)": "Changhua",
+        "南投 (Nantou)": "Nantou",
+        "雲林 (Yunlin)": "Yunlin",
+        "嘉義 (Chiayi)": "Chiayi",
+        "屏東 (Pingtung)": "Pingtung",
+        "宜蘭 (Yilan)": "Yilan",
+        "花蓮 (Hualien)": "Hualien",
+        "台東 (Taitung)": "Taitung",
+        "澎湖 (Penghu)": "Penghu",
+        "金門 (Kinmen)": "Kinmen",
+        "馬祖 (Matsu)": "Matsu"
+    }
+    
+    default_display = "台北 (Taipei)"
+    for display, english in taiwan_cities.items():
+        if english.lower() == default_city.lower():
+            default_display = display
+            break
+    
+    city_display = st.selectbox(
+        "選擇城市", 
+        options=list(taiwan_cities.keys()),
+        index=list(taiwan_cities.keys()).index(default_display),
+        help="選擇台灣縣市以獲取天氣資訊"
+    )
+    
+    city = taiwan_cities[city_display]
 
 # --- 2. 核心功能函數 ---
 
@@ -89,6 +142,7 @@ def rate_limit_protection():
     current_time = time.time()
     time_since_last = current_time - st.session_state.last_request_time
     
+    # 如果距離上次請求不到 15 秒，就等待
     if time_since_last < 15:
         wait_time = 15 - time_since_last
         with st.spinner(f"⏳ API 速率保護中，等待 {int(wait_time)} 秒..."):
@@ -141,7 +195,7 @@ def auto_tagging(img_bytes, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-3-flash')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -184,7 +238,7 @@ def batch_auto_tagging(img_bytes_list, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-3-flash')
         
         content_parts = [f"""請仔細分析這 {len(img_bytes_list)} 件衣服，為每件衣服分別回傳 JSON 格式的標籤。
 
@@ -348,140 +402,82 @@ def register_user(username, password):
     except Exception as e:
         return False, str(e)
 
-def reset_password(username, new_password):
-    """重設密碼"""
+def parse_outfit_recommendation(ai_response, wardrobe):
+    """
+    解析 AI 推薦文字，提取推薦的衣服 ID
+    使用模糊匹配找出 AI 推薦的衣服對應到衣櫥中的實際物品
+    """
+    recommended_items = []
+    
+    # 將 AI 回應轉成小寫以便比對
+    response_lower = ai_response.lower()
+    
+    # 遍歷衣櫥中的每件衣服
+    for item in wardrobe:
+        item_name = item.get('name', '').lower()
+        item_category = item.get('category', '').lower()
+        item_color = item.get('color', '').lower()
+        
+        # 檢查 AI 回應中是否提到這件衣服
+        # 使用名稱、類別、顏色進行匹配
+        if (item_name and item_name in response_lower) or \
+           (item_color and item_category and f"{item_color}{item_category}" in response_lower.replace(' ', '')):
+            recommended_items.append(item)
+    
+    return recommended_items
+
+def generate_outfit_image(recommended_items, weather_info, api_key):
+    """
+    使用 Gemini 的 Imagen 3 生成穿搭人物圖像
+    """
     try:
-        result = st.session_state.supabase_client.table("users")\
-            .select("id")\
-            .eq("username", username)\
-            .execute()
+        rate_limit_protection()
         
-        if not result.data:
-            return False, "使用者不存在"
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-3-flash')
         
-        st.session_state.supabase_client.table("users")\
-            .update({"password": new_password})\
-            .eq("username", username)\
-            .execute()
+        # 構建服裝描述
+        outfit_description = []
+        for item in recommended_items:
+            outfit_description.append(f"{item.get('color', '')} {item.get('name', '')}")
         
-        return True, "密碼重設成功"
+        outfit_text = ", ".join(outfit_description)
+        
+        # 構建 prompt
+        prompt = f"""Create a realistic fashion illustration of a stylish person wearing: {outfit_text}
+
+Style requirements:
+- Modern, clean fashion illustration style
+- Full body shot, standing pose
+- Professional fashion photography aesthetic
+- Neutral background
+- Weather context: {weather_info['temp']}°C, {weather_info['desc']}
+- 2026 fashion trends: functional style, sustainable materials
+- High quality, detailed rendering
+
+The outfit should look coordinated and fashionable."""
+        
+        # 生成圖像
+        response = model.generate_content([prompt])
+        
+        # 注意: Gemini 2.0 Flash 目前不直接支援圖像生成
+        # 這裡我們返回 None，並在 UI 中顯示文字說明
+        return None, prompt
         
     except Exception as e:
-        return False, str(e)
+        st.error(f"圖像生成失敗: {str(e)}")
+        return None, None
 
-# --- 3. Sidebar 設定 ---
+# --- 3. 介面操作 ---
 
-with st.sidebar:
-    st.header("🔑 API 設定")
-    
-    if use_secrets:
-        st.success("✅ 使用雲端設定")
-        st.caption("API Keys 已從安全儲存區載入")
-        
-        if st.checkbox("🔧 手動覆寫設定"):
-            google_key = st.text_input("Gemini API Key", value=google_key, type="password")
-            weather_key = st.text_input("OpenWeather Key", value=weather_key, type="password")
-            supabase_url = st.text_input("Supabase URL", value=supabase_url)
-            supabase_key = st.text_input("Supabase Anon Key", value=supabase_key, type="password")
-    else:
-        st.info("💡 本地模式: 請輸入 API Keys")
-        google_key = st.text_input("Gemini API Key", type="password", help="前往 Google AI Studio 取得")
-        weather_key = st.text_input("OpenWeather Key", type="password", help="前往 openweathermap.org 註冊")
-        
-        st.divider()
-        st.subheader("☁️ Supabase 設定")
-        supabase_url = st.text_input("Supabase URL", help="格式: https://xxx.supabase.co")
-        supabase_key = st.text_input("Supabase Anon Key", type="password")
-    
-    # 連接 Supabase
-    if supabase_url and supabase_key:
-        try:
-            st.session_state.supabase_client = create_client(supabase_url, supabase_key)
-            if not use_secrets:
-                st.success("✅ Supabase 已連接")
-        except Exception as e:
-            st.error(f"❌ Supabase 連接失敗: {str(e)}")
-    
-    st.divider()
-    
-    with st.expander("⚡ Gemini API 使用提醒", expanded=False):
-        st.success("""
-        **批量模式優勢：**
-        - ✅ 10 張圖 = 1 次 API 呼叫
-        - ✅ 大幅減少 RPM 限制風險
-        - ✅ 處理速度提升 10 倍
-        - 建議每批 5-10 張
-        """)
-    
-    # 🆕 只在已登入時顯示城市選單和天氣
-    if st.session_state.user_id:
-        st.divider()
-        st.subheader("🌍 天氣設定")
-        
-        # 找出預設顯示值
-        default_display = "台北 (Taipei)"
-        for display, english in TAIWAN_CITIES.items():
-            if english.lower() == default_city.lower():
-                default_display = display
-                break
-        
-        city_display = st.selectbox(
-            "選擇城市", 
-            options=list(TAIWAN_CITIES.keys()),
-            index=list(TAIWAN_CITIES.keys()).index(default_display),
-            help="選擇台灣縣市以獲取天氣資訊",
-            key="city_selector"
-        )
-        
-        current_city = TAIWAN_CITIES[city_display]
-        
-        # 🆕 自動更新天氣 (1小時刷新一次)
-        if weather_key:
-            now = datetime.now()
-            need_update = False
-            
-            if st.session_state.weather_data is None:
-                need_update = True
-            elif st.session_state.selected_city != current_city:
-                need_update = True
-                st.session_state.selected_city = current_city
-            elif st.session_state.weather_update_time is None:
-                need_update = True
-            elif (now - st.session_state.weather_update_time) > timedelta(hours=1):
-                need_update = True
-            
-            if need_update:
-                with st.spinner("更新天氣資訊..."):
-                    weather = get_weather(current_city, weather_key)
-                    if weather:
-                        st.session_state.weather_data = weather
-                        st.session_state.weather_update_time = now
-                        st.session_state.selected_city = current_city
-            
-            # 顯示天氣資訊
-            if st.session_state.weather_data:
-                st.success("📡 即時天氣")
-                weather = st.session_state.weather_data
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("🌡️", f"{weather['temp']}°C")
-                with col2:
-                    st.metric("🤔", f"{weather['feels_like']}°C")
-                st.caption(f"☁️ {weather['desc']}")
-                
-                if st.session_state.weather_update_time:
-                    update_time = st.session_state.weather_update_time.strftime("%H:%M")
-                    st.caption(f"更新時間: {update_time}")
-
-# --- 4. 登入/註冊系統 ---
-
+# 登入/註冊系統
 if not st.session_state.user_id:
     st.info("👋 請先登入或註冊以使用個人衣櫥")
     
-    tab_login, tab_register, tab_forgot = st.tabs(["🔑 登入", "📝 註冊", "🔓 忘記密碼"])
+    tab_login, tab_register = st.tabs(["🔑 登入", "📝 註冊"])
     
     with tab_login:
-        with st.form("login_form", clear_on_submit=True):
+        with st.form("login_form"):
             st.subheader("登入帳號")
             login_username = st.text_input("使用者名稱", key="login_user")
             login_password = st.text_input("密碼", type="password", key="login_pass")
@@ -498,13 +494,12 @@ if not st.session_state.user_id:
                         st.session_state.user_id = result
                         st.session_state.username = login_username
                         st.success(f"歡迎回來, {login_username}! 🎉")
-                        time.sleep(0.5)
                         st.rerun()
                     else:
                         st.error(f"登入失敗: {result}")
     
     with tab_register:
-        with st.form("register_form", clear_on_submit=True):
+        with st.form("register_form"):
             st.subheader("註冊新帳號")
             reg_username = st.text_input("使用者名稱", key="reg_user")
             reg_password = st.text_input("密碼", type="password", key="reg_pass")
@@ -523,40 +518,9 @@ if not st.session_state.user_id:
                 else:
                     success, result = register_user(reg_username, reg_password)
                     if success:
-                        st.success("註冊成功! 正在自動登入... ✅")
-                        time.sleep(1)
-                        login_success, user_id = login_user(reg_username, reg_password)
-                        if login_success:
-                            st.session_state.user_id = user_id
-                            st.session_state.username = reg_username
-                            st.rerun()
+                        st.success("註冊成功! 請登入 ✅")
                     else:
                         st.error(f"註冊失敗: {result}")
-    
-    with tab_forgot:
-        with st.form("forgot_form", clear_on_submit=True):
-            st.subheader("重設密碼")
-            st.caption("⚠️ 請輸入您的使用者名稱和新密碼")
-            forgot_username = st.text_input("使用者名稱", key="forgot_user")
-            new_password = st.text_input("新密碼", type="password", key="new_pass")
-            new_password2 = st.text_input("確認新密碼", type="password", key="new_pass2")
-            reset_button = st.form_submit_button("重設密碼", use_container_width=True)
-            
-            if reset_button:
-                if not st.session_state.supabase_client:
-                    st.error("請先在左側設定 Supabase 連接")
-                elif not forgot_username or not new_password:
-                    st.warning("請輸入使用者名稱和新密碼")
-                elif new_password != new_password2:
-                    st.error("兩次密碼輸入不一致")
-                elif len(new_password) < 6:
-                    st.warning("密碼至少需要 6 個字元")
-                else:
-                    success, message = reset_password(forgot_username, new_password)
-                    if success:
-                        st.success(f"{message} 請前往登入頁面 ✅")
-                    else:
-                        st.error(f"重設失敗: {message}")
     
     st.stop()
 
@@ -566,9 +530,6 @@ st.sidebar.success(f"👤 目前使用者: **{st.session_state.username}**")
 if st.sidebar.button("🚪 登出", use_container_width=True):
     st.session_state.user_id = None
     st.session_state.username = None
-    st.session_state.weather_data = None
-    st.session_state.weather_update_time = None
-    st.session_state.selected_city = None
     st.rerun()
 
 # 檢查必要設定
@@ -583,8 +544,6 @@ def check_setup(need_weather=False):
         st.warning("⚠️ 請在左側輸入 OpenWeather API Key")
         return False
     return True
-
-# --- 5. 主要功能分頁 ---
 
 tab1, tab2, tab3 = st.tabs(["📸 上傳入庫", "👔 我的衣櫥", "💡 今日推薦"])
 
@@ -869,50 +828,12 @@ with tab2:
 with tab3:
     st.header("今日穿搭推薦")
     
-    # 🆕 風格選單
-    style_options = {
-        "🇫🇷 法式優雅": "法式優雅風格，強調輕鬆隨性但精緻的搭配，色調以黑白灰為主，搭配經典單品如條紋衫、西裝外套、牛仔褲",
-        "🇺🇸 美式休閒": "美式休閒風格，強調舒適實用，常見單品包括 T-shirt、牛仔褲、運動鞋、棒球帽",
-        "🇬🇧 英倫紳士": "英倫紳士風格，講究剪裁與質感，常見格紋、西裝、風衣、皮鞋等正式單品",
-        "🎨 巴洛克華麗": "巴洛克風格，強調誇張華麗、金色裝飾、刺繡、蕾絲等繁複元素",
-        "💣 地雷系": "日系地雷系風格，以黑色為主，搭配蕾絲、蝴蝶結、哥德元素，呈現病嬌可愛感",
-        "🎮 宅男舒適": "宅男風格，強調舒適實用，寬鬆T恤、運動褲、帽T、球鞋為主",
-        "🌊 潮流街頭": "街頭潮流風格，強調個性與品牌，oversize、球鞋、帽子、配件等",
-        "💼 都會型男": "都會型男風格，簡約俐落，商務休閒兼具，重視品質與細節",
-        "🏃 運動機能": "運動機能風格，強調功能性與科技感，防水、透氣、速乾材質",
-        "🌸 韓系清新": "韓系風格，色調柔和，oversized、寬鬆剪裁、淺色系為主",
-        "🎭 暗黑哥德": "哥德風格，以黑色為主，皮革、鉚釘、十字架等元素，神秘感十足",
-        "🌈 多元混搭": "不限定風格，AI 將根據天氣與衣櫥自由搭配出創意組合"
-    }
-    
-    selected_style = st.selectbox(
-        "🎨 選擇穿搭風格",
-        options=list(style_options.keys()),
-        index=11,
-        help="選擇您想要的穿搭風格，AI 會根據此風格進行推薦"
-    )
-    
-    style_description = style_options[selected_style]
-    
-    with st.expander("ℹ️ 風格說明", expanded=False):
-        st.info(style_description)
-    
     if st.button("✨ 獲取今日推薦", type="primary", use_container_width=True):
         if not check_setup(need_weather=True):
             st.stop()
         
-        # 使用快取的天氣資料
-        if st.session_state.weather_data is None:
-            # 使用選中的城市或預設城市
-            target_city = st.session_state.selected_city if st.session_state.selected_city else default_city
-            with st.spinner("正在查詢天氣..."):
-                weather = get_weather(target_city, weather_key)
-                if weather:
-                    st.session_state.weather_data = weather
-                    st.session_state.weather_update_time = datetime.now()
-                    st.session_state.selected_city = target_city
-        
-        weather = st.session_state.weather_data
+        with st.spinner("正在查詢天氣..."):
+            weather = get_weather(city, weather_key)
         
         with st.spinner("正在讀取衣櫥..."):
             wardrobe = get_wardrobe()
@@ -945,21 +866,15 @@ with tab3:
                 rate_limit_protection()
                 
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-3-flash-preview')
-                
-                target_city = st.session_state.selected_city if st.session_state.selected_city else default_city
+                model = genai.GenerativeModel('gemini-3-flash')
                 
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
                 
                 **天氣資訊:**
-                - 城市: {target_city}
+                - 城市: {city}
                 - 溫度: {weather['temp']}°C (體感 {weather['feels_like']}°C)
                 - 天氣: {weather['desc']}
-                
-                **指定風格:**
-                {selected_style}
-                {style_description}
                 
                 **2026 流行趨勢:**
                 - 機能風格當道
@@ -970,10 +885,10 @@ with tab3:
                 {json.dumps(wardrobe_summary, ensure_ascii=False, indent=2)}
                 
                 **請提供:**
-                1. 推薦的完整穿搭組合 (從頭到腳)，必須符合指定的「{selected_style}」風格
-                2. 每件單品的選擇理由 (考慮天氣與風格)
-                3. 整體風格說明 (如何體現{selected_style}的特色)
-                4. 搭配小技巧 (針對此風格的進階建議)
+                1. 推薦的完整穿搭組合 (從頭到腳)，**明確指出每件衣服的名稱**
+                2. 每件單品的選擇理由
+                3. 整體風格說明
+                4. 搭配小技巧
                 
                 請用親切、專業的口吻回答,使用繁體中文。
                 """
@@ -981,9 +896,56 @@ with tab3:
                 response = model.generate_content(prompt)
                 
                 st.markdown("### 🎨 今日穿搭建議")
-                st.markdown(f"**風格主題:** {selected_style}")
-                st.divider()
                 st.markdown(response.text)
+                
+                st.divider()
+                
+                # ✨ 新功能 1: 顯示推薦的衣服圖片
+                st.markdown("### 👔 推薦單品展示")
+                
+                recommended_items = parse_outfit_recommendation(response.text, wardrobe)
+                
+                if recommended_items:
+                    cols = st.columns(min(4, len(recommended_items)))
+                    for idx, item in enumerate(recommended_items):
+                        with cols[idx % min(4, len(recommended_items))]:
+                            with st.container(border=True):
+                                if 'image_data' in item and item['image_data']:
+                                    try:
+                                        img_bytes = base64.b64decode(item['image_data'])
+                                        img = Image.open(io.BytesIO(img_bytes))
+                                        st.image(img, use_container_width=True)
+                                    except:
+                                        st.write("🖼️ 圖片載入失敗")
+                                
+                                st.write(f"**{item.get('name', '未命名')}**")
+                                st.caption(f"{item.get('color', '')} | {item.get('category', '')}")
+                else:
+                    st.info("💡 AI 推薦的衣服未在您的衣櫥中找到對應圖片")
+                
+                st.divider()
+                
+                # ✨ 新功能 2: 生成穿搭人物圖像 (使用 DALL-E 風格的 prompt)
+                st.markdown("### 🎭 穿搭視覺化")
+                
+                with st.spinner("正在生成穿搭示意圖..."):
+                    outfit_image, image_prompt = generate_outfit_image(recommended_items, weather, google_key)
+                    
+                    if image_prompt:
+                        st.info(f"📝 圖像描述: {image_prompt}")
+                        st.warning("""
+                        ⚠️ **功能說明**: 
+                        - Gemini 2.0 Flash 目前不支援直接圖像生成
+                        - 建議使用以下服務生成穿搭人物圖:
+                          1. 複製上方的圖像描述
+                          2. 前往 [DALL-E 3](https://openai.com/dall-e-3) 或 [Midjourney](https://www.midjourney.com/)
+                          3. 貼上描述即可生成專屬穿搭圖
+                        """)
+                        
+                        # 提供一個按鈕複製 prompt
+                        if st.button("📋 複製圖像描述", use_container_width=True):
+                            st.code(image_prompt, language=None)
+                            st.success("✅ 請手動複製上方文字到圖像生成服務")
                 
                 st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
                 
@@ -997,12 +959,12 @@ with tab3:
     **💡 推薦功能說明:**
     - 結合即時天氣與您的衣櫥
     - 考慮 2026 流行趨勢
-    - 支援 12 種風格選擇
     - 提供個人化穿搭建議
+    - ✨ 顯示推薦衣服的實際圖片
+    - ✨ 生成穿搭人物圖像描述
     - 使用 Gemini 2.0 Flash 模型
     """)
 
-# --- 6. 底部資訊 ---
 st.divider()
 with st.expander("📋 Supabase 資料表結構說明"):
     st.code("""
@@ -1014,7 +976,7 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 衣櫥資料表 (新增 image_hash 欄位)
+-- 衣櫥資料表
 CREATE TABLE my_wardrobe (
     id BIGSERIAL PRIMARY KEY,
     name TEXT NOT NULL,
@@ -1031,9 +993,5 @@ CREATE TABLE my_wardrobe (
 -- 建立 hash 索引以加速重複檢查
 CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
-    st.caption("⚠️ 請在 Supabase 中新增 image_hash 欄位和索引")
 
-st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini 2.0 Flash & Supabase")
-
-
-
+st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
