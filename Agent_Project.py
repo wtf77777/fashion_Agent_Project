@@ -36,6 +36,12 @@ if 'username' not in st.session_state:
     st.session_state.username = None
 if 'last_request_time' not in st.session_state:
     st.session_state.last_request_time = 0
+if 'weather_data' not in st.session_state:
+    st.session_state.weather_data = None
+if 'weather_update_time' not in st.session_state:
+    st.session_state.weather_update_time = None
+if 'selected_city' not in st.session_state:
+    st.session_state.selected_city = None
 
 # 嘗試從 Streamlit Secrets 讀取設定
 try:
@@ -52,6 +58,84 @@ except:
     supabase_url = ""
     supabase_key = ""
     default_city = "Taipei"
+
+# 台灣城市資料
+TAIWAN_CITIES = {
+    "台北 (Taipei)": "Taipei",
+    "新北 (New Taipei)": "New Taipei",
+    "桃園 (Taoyuan)": "Taoyuan",
+    "台中 (Taichung)": "Taichung",
+    "台南 (Tainan)": "Tainan",
+    "高雄 (Kaohsiung)": "Kaohsiung",
+    "基隆 (Keelung)": "Keelung",
+    "新竹 (Hsinchu)": "Hsinchu",
+    "苗栗 (Miaoli)": "Miaoli",
+    "彰化 (Changhua)": "Changhua",
+    "南投 (Nantou)": "Nantou",
+    "雲林 (Yunlin)": "Yunlin",
+    "嘉義 (Chiayi)": "Chiayi",
+    "屏東 (Pingtung)": "Pingtung",
+    "宜蘭 (Yilan)": "Yilan",
+    "花蓮 (Hualien)": "Hualien",
+    "台東 (Taitung)": "Taitung",
+    "澎湖 (Penghu)": "Penghu",
+    "金門 (Kinmen)": "Kinmen",
+    "馬祖 (Matsu)": "Matsu"
+}
+
+# ✨ 找出預設城市顯示值
+default_city_display = "台北 (Taipei)"
+for display, english in TAIWAN_CITIES.items():
+    if english.lower() == default_city.lower():
+        default_city_display = display
+        break
+
+# ✨ 天氣資訊顯示區域（紅框位置）
+if st.session_state.user_id and weather_key:
+    weather_container = st.container()
+    with weather_container:
+        # 自動更新天氣
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        need_update = False
+        
+        # 使用當前選中的城市，如果沒有則使用預設城市
+        current_city = st.session_state.selected_city if st.session_state.selected_city else default_city
+        
+        if st.session_state.weather_data is None:
+            need_update = True
+        elif st.session_state.selected_city != current_city:
+            need_update = True
+        elif st.session_state.weather_update_time is None:
+            need_update = True
+        elif (now - st.session_state.weather_update_time) > timedelta(hours=1):
+            need_update = True
+        
+        if need_update:
+            weather = get_weather(current_city, weather_key)
+            if weather:
+                st.session_state.weather_data = weather
+                st.session_state.weather_update_time = now
+                st.session_state.selected_city = current_city
+        
+        # 顯示天氣資訊
+        if st.session_state.weather_data:
+            weather = st.session_state.weather_data
+            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+            with col1:
+                st.markdown(f"### 📡 {current_city} 即時天氣")
+            with col2:
+                st.metric("🌡️ 溫度", f"{weather['temp']}°C")
+            with col3:
+                st.metric("🤔 體感", f"{weather['feels_like']}°C")
+            with col4:
+                st.metric("☁️", weather['desc'])
+            
+            if st.session_state.weather_update_time:
+                update_time = st.session_state.weather_update_time.strftime("%H:%M")
+                st.caption(f"更新時間: {update_time} (每小時自動更新)")
+            
+            st.divider()
 
 with st.sidebar:
     st.header("🔑 API 設定")
@@ -96,44 +180,27 @@ with st.sidebar:
         - 建議每批 5-10 張
         """)
     
-    # 台灣城市選單
-    taiwan_cities = {
-        "台北 (Taipei)": "Taipei",
-        "新北 (New Taipei)": "New Taipei",
-        "桃園 (Taoyuan)": "Taoyuan",
-        "台中 (Taichung)": "Taichung",
-        "台南 (Tainan)": "Tainan",
-        "高雄 (Kaohsiung)": "Kaohsiung",
-        "基隆 (Keelung)": "Keelung",
-        "新竹 (Hsinchu)": "Hsinchu",
-        "苗栗 (Miaoli)": "Miaoli",
-        "彰化 (Changhua)": "Changhua",
-        "南投 (Nantou)": "Nantou",
-        "雲林 (Yunlin)": "Yunlin",
-        "嘉義 (Chiayi)": "Chiayi",
-        "屏東 (Pingtung)": "Pingtung",
-        "宜蘭 (Yilan)": "Yilan",
-        "花蓮 (Hualien)": "Hualien",
-        "台東 (Taitung)": "Taitung",
-        "澎湖 (Penghu)": "Penghu",
-        "金門 (Kinmen)": "Kinmen",
-        "馬祖 (Matsu)": "Matsu"
-    }
-    
-    default_display = "台北 (Taipei)"
-    for display, english in taiwan_cities.items():
-        if english.lower() == default_city.lower():
-            default_display = display
-            break
+    # ✨ 城市選單（在側邊欄）
+    st.divider()
+    st.subheader("🌍 城市設定")
     
     city_display = st.selectbox(
         "選擇城市", 
-        options=list(taiwan_cities.keys()),
-        index=list(taiwan_cities.keys()).index(default_display),
-        help="選擇台灣縣市以獲取天氣資訊"
+        options=list(TAIWAN_CITIES.keys()),
+        index=list(TAIWAN_CITIES.keys()).index(default_city_display),
+        help="選擇台灣縣市以獲取天氣資訊",
+        key="city_selector"
     )
     
-    city = taiwan_cities[city_display]
+    # 更新選中的城市
+    selected_city = TAIWAN_CITIES[city_display]
+    if st.session_state.selected_city != selected_city:
+        st.session_state.selected_city = selected_city
+        # 清除舊天氣資料以觸發更新
+        st.session_state.weather_data = None
+        st.rerun()
+    
+    city = selected_city
 
 # --- 2. 核心功能函數 ---
 
@@ -195,7 +262,7 @@ def auto_tagging(img_bytes, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -238,7 +305,7 @@ def batch_auto_tagging(img_bytes_list, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         content_parts = [f"""請仔細分析這 {len(img_bytes_list)} 件衣服，為每件衣服分別回傳 JSON 格式的標籤。
 
@@ -434,7 +501,7 @@ def generate_outfit_image(recommended_items, weather_info, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         # 構建服裝描述
         outfit_description = []
@@ -530,6 +597,9 @@ st.sidebar.success(f"👤 目前使用者: **{st.session_state.username}**")
 if st.sidebar.button("🚪 登出", use_container_width=True):
     st.session_state.user_id = None
     st.session_state.username = None
+    st.session_state.weather_data = None
+    st.session_state.weather_update_time = None
+    st.session_state.selected_city = None
     st.rerun()
 
 # 檢查必要設定
@@ -832,8 +902,18 @@ with tab3:
         if not check_setup(need_weather=True):
             st.stop()
         
-        with st.spinner("正在查詢天氣..."):
-            weather = get_weather(city, weather_key)
+        # 使用快取的天氣資料或重新獲取
+        if st.session_state.weather_data is None:
+            current_city = st.session_state.selected_city if st.session_state.selected_city else default_city
+            with st.spinner("正在查詢天氣..."):
+                weather = get_weather(current_city, weather_key)
+                if weather:
+                    st.session_state.weather_data = weather
+                    st.session_state.weather_update_time = datetime.now()
+                    st.session_state.selected_city = current_city
+        
+        weather = st.session_state.weather_data
+        current_city = st.session_state.selected_city if st.session_state.selected_city else default_city
         
         with st.spinner("正在讀取衣櫥..."):
             wardrobe = get_wardrobe()
@@ -866,13 +946,13 @@ with tab3:
                 rate_limit_protection()
                 
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-3-flash-preview')
+                model = genai.GenerativeModel('gemini-2.0-flash-exp')
                 
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
                 
                 **天氣資訊:**
-                - 城市: {city}
+                - 城市: {current_city}
                 - 溫度: {weather['temp']}°C (體感 {weather['feels_like']}°C)
                 - 天氣: {weather['desc']}
                 
@@ -995,5 +1075,3 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
-
-
