@@ -184,7 +184,7 @@ with st.sidebar:
         - 建議每批 5-10 張
         """)
     
-    # ✨ 城市選單（在側邊欄）
+    # ✨ 城市選單（所有人都可見，不論是否登入）
     st.divider()
     st.subheader("🌍 城市設定")
     
@@ -202,9 +202,20 @@ with st.sidebar:
         st.session_state.selected_city = selected_city
         # 清除舊天氣資料以觸發更新
         st.session_state.weather_data = None
-        st.rerun()
     
     city = selected_city
+    
+    # ✨ 顯示已登入使用者資訊
+    if st.session_state.user_id:
+        st.divider()
+        st.success(f"👤 目前使用者: **{st.session_state.username}**")
+        if st.button("🚪 登出", use_container_width=True):
+            st.session_state.user_id = None
+            st.session_state.username = None
+            st.session_state.weather_data = None
+            st.session_state.weather_update_time = None
+            st.session_state.selected_city = None
+            st.rerun()
 
 # --- 2. 核心功能函數 ---
 
@@ -541,6 +552,10 @@ The outfit should look coordinated and fashionable."""
 
 # --- 3. 介面操作 ---
 
+# ✨ 初始化選中的城市（在登入檢查之前）
+if st.session_state.selected_city is None:
+    st.session_state.selected_city = default_city
+
 # 登入/註冊系統
 if not st.session_state.user_id:
     st.info("👋 請先登入或註冊以使用個人衣櫥")
@@ -594,17 +609,6 @@ if not st.session_state.user_id:
                         st.error(f"註冊失敗: {result}")
     
     st.stop()
-
-# 顯示已登入使用者
-st.sidebar.divider()
-st.sidebar.success(f"👤 目前使用者: **{st.session_state.username}**")
-if st.sidebar.button("🚪 登出", use_container_width=True):
-    st.session_state.user_id = None
-    st.session_state.username = None
-    st.session_state.weather_data = None
-    st.session_state.weather_update_time = None
-    st.session_state.selected_city = None
-    st.rerun()
 
 # 檢查必要設定
 def check_setup(need_weather=False):
