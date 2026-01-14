@@ -64,7 +64,16 @@ def get_weather(city, api_key):
     except Exception as e:
         st.error(f"天氣獲取失敗: {str(e)}")
         return None
-
+def handle_city_change():
+    """當城市選單變動時立刻執行的邏輯"""
+    # 透過 key 取得目前選單的值
+    new_display_name = st.session_state.city_selector
+    new_city_eng = TAIWAN_CITIES[new_display_name]
+    
+    # 立刻更新狀態，這樣頂部重新執行時就會拿到新城市
+    st.session_state.selected_city = new_city_eng
+    st.session_state.weather_data = None  # 強制清除舊天氣以重新抓取
+    
 def auto_tagging(img_bytes, api_key):
     """AI 自動標籤衣服 - 單張模式"""
     try:
@@ -522,15 +531,10 @@ with st.sidebar:
             options=list(TAIWAN_CITIES.keys()),
             index=list(TAIWAN_CITIES.keys()).index(default_city_display),
             help="選擇台灣縣市以獲取天氣資訊",
-            key="city_selector"
+            key="city_selector",        # 這是關鍵，必須要有 key
+            on_change=handle_city_change # 當選單改變，立刻執行上面的函數
         )
-        
-        # 更新選中的城市
-        selected_city = TAIWAN_CITIES[city_display]
-        if st.session_state.selected_city != selected_city:
-            st.session_state.selected_city = selected_city
-            # 清除舊天氣資料以觸發更新
-            st.session_state.weather_data = None
+    
         
         st.divider()
         if st.button("🚪 登出", use_container_width=True):
@@ -1079,5 +1083,6 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
