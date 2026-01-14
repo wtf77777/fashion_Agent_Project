@@ -141,7 +141,7 @@ def auto_tagging(img_bytes, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        model = genai.GenerativeModel('gemini-3.0-pro-image-preview')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -184,7 +184,7 @@ def batch_auto_tagging(img_bytes_list, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        model = genai.GenerativeModel('gemini-3.0-pro-image-preview')
         
         content_parts = [f"""請仔細分析這 {len(img_bytes_list)} 件衣服，為每件衣服分別回傳 JSON 格式的標籤。
 
@@ -945,7 +945,7 @@ with tab3:
                 rate_limit_protection()
                 
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                model = genai.GenerativeModel('gemini-3.0-pro-image-preview')
                 
                 target_city = st.session_state.selected_city if st.session_state.selected_city else default_city
                 
@@ -1034,3 +1034,4 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     st.caption("⚠️ 請在 Supabase 中新增 image_hash 欄位和索引")
 
 st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini 2.0 Flash & Supabase")
+
