@@ -279,7 +279,26 @@ def delete_item(item_id):
     except Exception as e:
         st.error(f"刪除失敗: {str(e)}")
         return False
-
+ef batch_delete_items(item_ids):
+    """批量刪除衣服"""
+    try:
+        success_count = 0
+        fail_count = 0
+        
+        for item_id in item_ids:
+            try:
+                st.session_state.supabase_client.table("my_wardrobe")\
+                    .delete()\
+                    .eq("id", item_id)\
+                    .eq("user_id", st.session_state.user_id)\
+                    .execute()
+                success_count += 1
+            except:
+                fail_count += 1
+        
+        return True, success_count, fail_count
+    except Exception as e:
+        return False, 0, 0
 def register_user(username, password):
     """註冊新使用者"""
     try:
@@ -562,8 +581,22 @@ with tab2:
     if not check_setup():
         st.stop()
     
-    if st.button("🔄 重新整理", use_container_width=True):
-        st.rerun()
+    # ✅ 新增批量刪除模式切換
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        if st.button("🔄 重新整理", use_container_width=True):
+            st.rerun()
+    with col2:
+        if 'batch_delete_mode' not in st.session_state:
+            st.session_state.batch_delete_mode = False
+        
+        if st.button("🗑️ 批量刪除" if not st.session_state.batch_delete_mode else "✅ 完成", 
+                     use_container_width=True,
+                     type="secondary" if not st.session_state.batch_delete_mode else "primary"):
+            st.session_state.batch_delete_mode = not st.session_state.batch_delete_mode
+            if 'selected_items' in st.session_state:
+                del st.session_state.selected_items
+            st.rerun()
     
     items = get_wardrobe()
     
@@ -583,10 +616,55 @@ with tab2:
         
         st.divider()
         
+        # ✅ 批量刪除模式
+        if st.session_state.batch_delete_mode:
+            st.warning("🗑️ 批量刪除模式：勾選要刪除的衣服")
+            
+            if 'selected_items' not in st.session_state:
+                st.session_state.selected_items = []
+            
+            # 全選/取消全選
+            col1, col2, col3 = st.columns([1, 1, 4])
+            with col1:
+                if st.button("☑️ 全選", use_container_width=True):
+                    st.session_state.selected_items = [item['id'] for item in items]
+                    st.rerun()
+            with col2:
+                if st.button("⬜ 取消", use_container_width=True):
+                    st.session_state.selected_items = []
+                    st.rerun()
+            with col3:
+                if st.session_state.selected_items:
+                    if st.button(f"🗑️ 刪除選中的 {len(st.session_state.selected_items)} 件", 
+                                 type="primary", 
+                                 use_container_width=True):
+                        success, success_count, fail_count = batch_delete_items(st.session_state.selected_items)
+                        if success:
+                            st.success(f"✅ 已刪除 {success_count} 件衣服")
+                            if fail_count > 0:
+                                st.warning(f"⚠️ {fail_count} 件刪除失敗")
+                            st.session_state.selected_items = []
+                            st.session_state.batch_delete_mode = False
+                            time.sleep(1)
+                            st.rerun()
+            
+            st.divider()
+        
         cols = st.columns(3)
         for idx, item in enumerate(items):
             with cols[idx % 3]:
                 with st.container(border=True):
+                    # ✅ 批量刪除模式：顯示複選框
+                    if st.session_state.batch_delete_mode:
+                        is_selected = item['id'] in st.session_state.selected_items
+                        if st.checkbox("選擇", value=is_selected, key=f"check_{item['id']}"):
+                            if item['id'] not in st.session_state.selected_items:
+                                st.session_state.selected_items.append(item['id'])
+                        else:
+                            if item['id'] in st.session_state.selected_items:
+                                st.session_state.selected_items.remove(item['id'])
+                    
+                    # 顯示圖片
                     if 'image_data' in item and item['image_data']:
                         try:
                             img_bytes = base64.b64decode(item['image_data'])
@@ -595,16 +673,19 @@ with tab2:
                         except:
                             st.write("🖼️ 圖片載入失敗")
                     
+                    # 顯示資訊
                     st.subheader(item.get('name', '未命名'))
                     st.write(f"**類別:** {item.get('category', 'N/A')}")
                     st.write(f"**顏色:** {item.get('color', 'N/A')}")
                     st.write(f"**風格:** {item.get('style', 'N/A')}")
                     st.write(f"**保暖度:** {'🔥' * item.get('warmth', 0)}")
                     
-                    if st.button("🗑️ 刪除", key=f"del_{item.get('id')}", use_container_width=True):
-                        if delete_item(item.get('id')):
-                            st.success("已刪除")
-                            st.rerun()
+                    # ✅ 只在非批量模式顯示單個刪除按鈕
+                    if not st.session_state.batch_delete_mode:
+                        if st.button("🗑️ 刪除", key=f"del_{item.get('id')}", use_container_width=True):
+                            if delete_item(item.get('id')):
+                                st.success("已刪除")
+                                st.rerun()
     else:
         st.info("目前衣櫥是空的,去上傳一些衣服吧! 👕")
 
@@ -730,3 +811,4 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     st.caption("⚠️ 請在 Supabase 中新增 image_hash 欄位和索引")
 
 st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini 2.5 Flash & Supabase")
+
