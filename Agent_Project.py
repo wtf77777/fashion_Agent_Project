@@ -7,6 +7,8 @@ import io
 from supabase import create_client, Client
 import base64
 from datetime import datetime
+import hashlib
+import time
 
 # --- 1. 初始化設定 ---
 st.set_page_config(page_title="2026 AI 時尚顧問 (雲端版)", page_icon="☁️")
@@ -14,18 +16,9 @@ st.set_page_config(page_title="2026 AI 時尚顧問 (雲端版)", page_icon="☁
 # 隱藏 GitHub 圖示和其他 Streamlit 預設元素
 hide_streamlit_style = """
 <style>
-/* 隱藏 GitHub 圖示 */
-header[data-testid="stHeader"] {
-    display: none;
-}
-
-/* 隱藏右上角的工具列 */
+header[data-testid="stHeader"] {display: none;}
 #MainMenu {visibility: hidden;}
-
-/* 隱藏頁尾 */
 footer {visibility: hidden;}
-
-/* 隱藏 "Deploy" 按鈕 */
 .stDeployButton {display: none;}
 </style>
 """
@@ -33,13 +26,15 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 st.title("👗 AI 個人穿搭 Agent (Cloud)")
 
-# 初始化 session state - Streamlit 會在同一瀏覽器 session 中自動保持
+# 初始化 session state
 if 'supabase_client' not in st.session_state:
     st.session_state.supabase_client = None
 if 'user_id' not in st.session_state:
     st.session_state.user_id = None
 if 'username' not in st.session_state:
     st.session_state.username = None
+if 'last_request_time' not in st.session_state:
+    st.session_state.last_request_time = 0
 
 # 嘗試從 Streamlit Secrets 讀取設定
 try:
@@ -64,7 +59,6 @@ with st.sidebar:
         st.success("✅ 使用雲端設定")
         st.caption("API Keys 已從安全儲存區載入")
         
-        # 讓使用者可以選擇覆寫
         if st.checkbox("🔧 手動覆寫設定"):
             google_key = st.text_input("Gemini API Key", value=google_key, type="password")
             weather_key = st.text_input("OpenWeather Key", value=weather_key, type="password")
@@ -91,6 +85,15 @@ with st.sidebar:
     
     st.divider()
     
+    # ⚠️ Gemini API 限制提醒
+    with st.expander("⚡ Gemini API 使用提醒", expanded=False):
+        st.warning("""
+        **免費版限制：**
+        - RPM: 4-5 次/分鐘
+        - 建議批量上傳 ≤ 3 張
+        - 系統會自動延遲避免超限
+        """)
+    
     # 台灣城市選單
     taiwan_cities = {
         "台北 (Taipei)": "Taipei",
@@ -115,7 +118,6 @@ with st.sidebar:
         "馬祖 (Matsu)": "Matsu"
     }
     
-    # 判斷預設城市
     default_display = "台北 (Taipei)"
     for display, english in taiwan_cities.items():
         if english.lower() == default_city.lower():
@@ -133,6 +135,39 @@ with st.sidebar:
 
 # --- 2. 核心功能函數 ---
 
+def rate_limit_protection():
+    """API 速率限制保護 - 確保不超過 RPM"""
+    current_time = time.time()
+    time_since_last = current_time - st.session_state.last_request_time
+    
+    # 如果距離上次請求不到 15 秒，就等待
+    if time_since_last < 15:
+        wait_time = 15 - time_since_last
+        with st.spinner(f"⏳ API 速率保護中，等待 {int(wait_time)} 秒..."):
+            time.sleep(wait_time)
+    
+    st.session_state.last_request_time = time.time()
+
+def get_image_hash(img_bytes):
+    """計算圖片的 SHA256 hash 值"""
+    return hashlib.sha256(img_bytes).hexdigest()
+
+def check_duplicate_image(img_hash):
+    """檢查圖片是否已存在"""
+    try:
+        result = st.session_state.supabase_client.table("my_wardrobe")\
+            .select("id, name")\
+            .eq("user_id", st.session_state.user_id)\
+            .eq("image_hash", img_hash)\
+            .execute()
+        
+        if result.data:
+            return True, result.data[0]['name']
+        return False, None
+    except Exception as e:
+        st.error(f"檢查重複失敗: {str(e)}")
+        return False, None
+
 def get_weather(city, api_key):
     """獲取天氣資訊"""
     try:
@@ -148,18 +183,19 @@ def get_weather(city, api_key):
         else:
             st.error(f"天氣 API 錯誤: {res.get('message', '未知錯誤')}")
             return None
-    except requests.exceptions.Timeout:
-        st.error("天氣 API 請求超時")
-        return None
     except Exception as e:
         st.error(f"天氣獲取失敗: {str(e)}")
         return None
 
 def auto_tagging(img_bytes, api_key):
-    """AI 自動標籤衣服"""
+    """AI 自動標籤衣服 - 使用新版 Gemini 2.5 Flash"""
     try:
+        # ✅ API 速率保護
+        rate_limit_protection()
+        
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash-lite')
+        # ✅ 使用新模型
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -186,36 +222,33 @@ def auto_tagging(img_bytes, api_key):
             if field not in tags:
                 raise ValueError(f"缺少必要欄位: {field}")
         
-        # 確保 warmth 是整數
         tags['warmth'] = int(tags['warmth'])
         
         return tags
         
     except json.JSONDecodeError as e:
         st.error(f"AI 回應格式錯誤,無法解析 JSON: {str(e)}")
-        st.code(response.text)  # 顯示原始回應供除錯
+        if 'response' in locals():
+            st.code(response.text)
         return None
     except Exception as e:
         st.error(f"AI 標籤失敗: {str(e)}")
         return None
 
-def save_to_supabase(tags, img_bytes):
+def save_to_supabase(tags, img_bytes, img_hash):
     """儲存衣服資料到 Supabase"""
     try:
-        # 將圖片轉為 base64
         img_base64 = base64.b64encode(img_bytes).decode('utf-8')
         
-        # 準備資料(加上 user_id)
         data = {
             **tags,
             "image_data": img_base64,
+            "image_hash": img_hash,
             "user_id": st.session_state.user_id,
             "created_at": datetime.now().isoformat()
         }
         
-        # 插入資料庫
         result = st.session_state.supabase_client.table("my_wardrobe").insert(data).execute()
-        
         return True, result.data
         
     except Exception as e:
@@ -235,7 +268,7 @@ def get_wardrobe():
         return []
 
 def delete_item(item_id):
-    """刪除衣服(確保是該使用者的)"""
+    """刪除衣服"""
     try:
         st.session_state.supabase_client.table("my_wardrobe")\
             .delete()\
@@ -250,7 +283,6 @@ def delete_item(item_id):
 def register_user(username, password):
     """註冊新使用者"""
     try:
-        # 檢查使用者是否已存在
         existing = st.session_state.supabase_client.table("users")\
             .select("*")\
             .eq("username", username)\
@@ -259,10 +291,9 @@ def register_user(username, password):
         if existing.data:
             return False, "使用者名稱已存在"
         
-        # 建立新使用者
         data = {
             "username": username,
-            "password": password,  # 實際應用應該加密!
+            "password": password,
             "created_at": datetime.now().isoformat()
         }
         
@@ -294,7 +325,6 @@ def login_user(username, password):
 # 登入/註冊系統
 if not st.session_state.user_id:
     st.info("👋 請先登入或註冊以使用個人衣櫥")
-    st.caption("💡 提示: 在同一個瀏覽器視窗中,刷新頁面後會保持登入狀態")
     
     tab_login, tab_register = st.tabs(["🔑 登入", "📝 註冊"])
     
@@ -349,7 +379,6 @@ if not st.session_state.user_id:
 # 顯示已登入使用者
 st.sidebar.divider()
 st.sidebar.success(f"👤 目前使用者: **{st.session_state.username}**")
-st.sidebar.caption("🔒 在此瀏覽器視窗保持登入")
 if st.sidebar.button("🚪 登出", use_container_width=True):
     st.session_state.user_id = None
     st.session_state.username = None
@@ -357,7 +386,6 @@ if st.sidebar.button("🚪 登出", use_container_width=True):
 
 # 檢查必要設定
 def check_setup(need_weather=False):
-    """檢查必要的 API 設定"""
     if not google_key:
         st.warning("⚠️ 請在左側輸入 Gemini API Key")
         return False
@@ -374,12 +402,7 @@ tab1, tab2, tab3 = st.tabs(["📸 上傳入庫", "👔 我的衣櫥", "💡 今�
 with tab1:
     st.header("上傳新衣到雲端")
     
-    # 選擇上傳模式
-    upload_mode = st.radio(
-        "上傳模式",
-        ["單張上傳", "批量上傳"],
-        horizontal=True
-    )
+    upload_mode = st.radio("上傳模式", ["單張上傳", "批量上傳"], horizontal=True)
     
     if upload_mode == "單張上傳":
         uploaded_file = st.file_uploader("選取衣服照片...", type=["jpg", "png", "jpeg"])
@@ -396,23 +419,28 @@ with tab1:
                     if not check_setup():
                         st.stop()
                     
-                    with st.spinner("AI 正在分析衣服..."):
-                        # 轉換圖片
+                    with st.spinner("正在檢查重複..."):
                         img_byte_arr = io.BytesIO()
                         img.save(img_byte_arr, format='JPEG')
                         img_bytes = img_byte_arr.getvalue()
+                        img_hash = get_image_hash(img_bytes)
                         
-                        # AI 辨識
+                        is_duplicate, existing_name = check_duplicate_image(img_hash)
+                        
+                        if is_duplicate:
+                            st.warning(f"⚠️ 這件衣服已存在: **{existing_name}**")
+                            st.info("💡 請上傳不同的衣服照片")
+                            st.stop()
+                    
+                    with st.spinner("AI 正在分析衣服..."):
                         tags = auto_tagging(img_bytes, google_key)
                         
                         if tags:
-                            # 顯示辨識結果
                             st.success("✅ AI 辨識完成!")
                             st.json(tags)
                             
-                            # 存入資料庫
                             with st.spinner("正在存入雲端..."):
-                                success, result = save_to_supabase(tags, img_bytes)
+                                success, result = save_to_supabase(tags, img_bytes, img_hash)
                                 
                                 if success:
                                     st.success(f"🎉 已存入雲端: **{tags['name']}**")
@@ -422,15 +450,23 @@ with tab1:
     
     else:  # 批量上傳
         uploaded_files = st.file_uploader(
-            "選取多張衣服照片...", 
+            "選取多張衣服照片（建議 ≤ 3 張避免超限）...", 
             type=["jpg", "png", "jpeg"],
             accept_multiple_files=True
         )
         
         if uploaded_files:
+            # ✅ 限制數量並給出警告
+            if len(uploaded_files) > 10:
+                st.error(f"❌ 一次最多只能上傳 10 張照片，您選擇了 {len(uploaded_files)} 張")
+                st.info("💡 請重新選擇不超過 10 張照片")
+                st.stop()
+            elif len(uploaded_files) > 3:
+                st.warning(f"⚠️ 您選擇了 {len(uploaded_files)} 張照片，處理時間會較長（約 {len(uploaded_files) * 15} 秒）")
+                st.info("💡 建議分批上傳，每次 3 張以內可避免 API 限制")
+            
             st.info(f"已選擇 {len(uploaded_files)} 張照片")
             
-            # 預覽所有圖片
             with st.expander("📷 預覽所有照片", expanded=True):
                 cols = st.columns(4)
                 for idx, file in enumerate(uploaded_files):
@@ -438,37 +474,45 @@ with tab1:
                         img = Image.open(file)
                         st.image(img, caption=file.name, use_container_width=True)
             
-            # 批量處理按鈕
             if st.button("🚀 批量辨識並上傳全部", type="primary", use_container_width=True):
                 if not check_setup():
                     st.stop()
                 
-                # 建立進度條
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
                 success_count = 0
                 fail_count = 0
+                duplicate_count = 0
+                
+                # 預估時間
+                estimated_time = len(uploaded_files) * 15
+                st.info(f"⏱️ 預估處理時間: 約 {estimated_time} 秒（每張間隔 15 秒避免 API 限制）")
                 
                 for idx, file in enumerate(uploaded_files):
-                    # 更新進度
                     progress = (idx + 1) / len(uploaded_files)
                     progress_bar.progress(progress)
                     status_text.text(f"處理中: {file.name} ({idx + 1}/{len(uploaded_files)})")
                     
                     try:
-                        # 讀取圖片
                         img = Image.open(file)
                         img_byte_arr = io.BytesIO()
                         img.save(img_byte_arr, format='JPEG')
                         img_bytes = img_byte_arr.getvalue()
+                        img_hash = get_image_hash(img_bytes)
                         
-                        # AI 辨識
+                        # 檢查重複
+                        is_duplicate, existing_name = check_duplicate_image(img_hash)
+                        if is_duplicate:
+                            duplicate_count += 1
+                            st.warning(f"⚠️ {file.name} 重複 (已存在: {existing_name})")
+                            continue
+                        
+                        # AI 辨識（內建 15 秒延遲）
                         tags = auto_tagging(img_bytes, google_key)
                         
                         if tags:
-                            # 存入資料庫
-                            success, result = save_to_supabase(tags, img_bytes)
+                            success, result = save_to_supabase(tags, img_bytes, img_hash)
                             
                             if success:
                                 success_count += 1
@@ -484,33 +528,32 @@ with tab1:
                         fail_count += 1
                         st.error(f"❌ {file.name} 處理失敗: {str(e)}")
                 
-                # 完成總結
                 progress_bar.progress(1.0)
                 status_text.empty()
                 
                 st.divider()
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("📊 總數", len(uploaded_files))
                 with col2:
                     st.metric("✅ 成功", success_count)
                 with col3:
+                    st.metric("⚠️ 重複", duplicate_count)
+                with col4:
                     st.metric("❌ 失敗", fail_count)
                 
                 if success_count > 0:
                     st.balloons()
                     st.success(f"🎉 批量上傳完成! 成功 {success_count} 件")
-                
-                if fail_count > 0:
-                    st.warning(f"⚠️ 有 {fail_count} 件上傳失敗,請檢查後重試")
     
     st.divider()
     st.info("""
     **📌 使用提示:**
     1. 拍攝清晰的單件衣服照片
     2. 背景簡潔有助於 AI 辨識
-    3. 確保照片光線充足
-    4. 批量上傳可一次處理多件衣服
+    3. **建議批量上傳 ≤ 3 張**（避免 API 超限）
+    4. 系統會自動過濾重複的衣服
+    5. 批量上傳會自動延遲保護（每張間隔 15 秒）
     """)
 
 with tab2:
@@ -527,7 +570,6 @@ with tab2:
     if items:
         st.write(f"共有 **{len(items)}** 件衣服")
         
-        # 分類統計
         categories = {}
         for item in items:
             cat = item.get('category', '其他')
@@ -541,12 +583,10 @@ with tab2:
         
         st.divider()
         
-        # 顯示衣服卡片
         cols = st.columns(3)
         for idx, item in enumerate(items):
             with cols[idx % 3]:
                 with st.container(border=True):
-                    # 顯示圖片
                     if 'image_data' in item and item['image_data']:
                         try:
                             img_bytes = base64.b64decode(item['image_data'])
@@ -555,14 +595,12 @@ with tab2:
                         except:
                             st.write("🖼️ 圖片載入失敗")
                     
-                    # 顯示資訊
                     st.subheader(item.get('name', '未命名'))
                     st.write(f"**類別:** {item.get('category', 'N/A')}")
                     st.write(f"**顏色:** {item.get('color', 'N/A')}")
                     st.write(f"**風格:** {item.get('style', 'N/A')}")
                     st.write(f"**保暖度:** {'🔥' * item.get('warmth', 0)}")
                     
-                    # 刪除按鈕
                     if st.button("🗑️ 刪除", key=f"del_{item.get('id')}", use_container_width=True):
                         if delete_item(item.get('id')):
                             st.success("已刪除")
@@ -584,14 +622,13 @@ with tab3:
             wardrobe = get_wardrobe()
         
         if not weather:
-            st.error("無法獲取天氣資訊,請檢查城市名稱和 API Key")
+            st.error("無法獲取天氣資訊")
             st.stop()
         
         if not wardrobe:
             st.warning("衣櫥是空的,請先上傳一些衣服!")
             st.stop()
         
-        # 顯示天氣資訊
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("🌡️ 溫度", f"{weather['temp']}°C")
@@ -602,17 +639,18 @@ with tab3:
         
         st.divider()
         
-        # 準備衣櫥資料 (不包含圖片 base64)
         wardrobe_summary = [
             {k: v for k, v in item.items() if k != 'image_data'}
             for item in wardrobe
         ]
         
-        # AI 推薦
         with st.spinner("AI 時尚顧問正在為您搭配..."):
             try:
+                # ✅ API 速率保護
+                rate_limit_protection()
+                
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-2.5-flash-lite')
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
@@ -648,6 +686,8 @@ with tab3:
                 
             except Exception as e:
                 st.error(f"AI 推薦失敗: {str(e)}")
+                if "quota" in str(e).lower() or "limit" in str(e).lower():
+                    st.warning("💡 可能是 API 額度用完或超過速率限制，請稍後再試")
     
     st.divider()
     st.info("""
@@ -655,6 +695,7 @@ with tab3:
     - 結合即時天氣與您的衣櫥
     - 考慮 2026 流行趨勢
     - 提供個人化穿搭建議
+    - 使用 Gemini 2.5 Flash 模型
     """)
 
 # --- 4. 底部資訊 ---
@@ -669,7 +710,7 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 衣櫥資料表
+-- 衣櫥資料表 (新增 image_hash 欄位)
 CREATE TABLE my_wardrobe (
     id BIGSERIAL PRIMARY KEY,
     name TEXT NOT NULL,
@@ -678,15 +719,14 @@ CREATE TABLE my_wardrobe (
     style TEXT,
     warmth INTEGER CHECK (warmth >= 1 AND warmth <= 10),
     image_data TEXT,
+    image_hash TEXT NOT NULL,
     user_id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 建立 hash 索引以加速重複檢查
+CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
-    st.caption("請在 Supabase 中建立這兩個資料表")
+    st.caption("⚠️ 請在 Supabase 中新增 image_hash 欄位和索引")
 
-st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini & Supabase")
-
-
-
-
-
+st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini 2.5 Flash & Supabase")
