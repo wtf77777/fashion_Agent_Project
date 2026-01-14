@@ -58,6 +58,33 @@ except:
     supabase_key = ""
     default_city = "Taipei"
 
+# 🔧 預先定義台灣城市資料（避免未登入時出錯）
+taiwan_cities = {
+    "台北 (Taipei)": "Taipei",
+    "新北 (New Taipei)": "New Taipei",
+    "桃園 (Taoyuan)": "Taoyuan",
+    "台中 (Taichung)": "Taichung",
+    "台南 (Tainan)": "Tainan",
+    "高雄 (Kaohsiung)": "Kaohsiung",
+    "基隆 (Keelung)": "Keelung",
+    "新竹 (Hsinchu)": "Hsinchu",
+    "苗栗 (Miaoli)": "Miaoli",
+    "彰化 (Changhua)": "Changhua",
+    "南投 (Nantou)": "Nantou",
+    "雲林 (Yunlin)": "Yunlin",
+    "嘉義 (Chiayi)": "Chiayi",
+    "屏東 (Pingtung)": "Pingtung",
+    "宜蘭 (Yilan)": "Yilan",
+    "花蓮 (Hualien)": "Hualien",
+    "台東 (Taitung)": "Taitung",
+    "澎湖 (Penghu)": "Penghu",
+    "金門 (Kinmen)": "Kinmen",
+    "馬祖 (Matsu)": "Matsu"
+}
+
+# 預設城市（未登入時使用）
+city = default_city
+
 with st.sidebar:
     st.header("🔑 API 設定")
     
@@ -105,30 +132,6 @@ with st.sidebar:
     if st.session_state.user_id:
         st.divider()
         st.subheader("🌍 天氣設定")
-        
-        # 台灣城市選單
-        taiwan_cities = {
-            "台北 (Taipei)": "Taipei",
-            "新北 (New Taipei)": "New Taipei",
-            "桃園 (Taoyuan)": "Taoyuan",
-            "台中 (Taichung)": "Taichung",
-            "台南 (Tainan)": "Tainan",
-            "高雄 (Kaohsiung)": "Kaohsiung",
-            "基隆 (Keelung)": "Keelung",
-            "新竹 (Hsinchu)": "Hsinchu",
-            "苗栗 (Miaoli)": "Miaoli",
-            "彰化 (Changhua)": "Changhua",
-            "南投 (Nantou)": "Nantou",
-            "雲林 (Yunlin)": "Yunlin",
-            "嘉義 (Chiayi)": "Chiayi",
-            "屏東 (Pingtung)": "Pingtung",
-            "宜蘭 (Yilan)": "Yilan",
-            "花蓮 (Hualien)": "Hualien",
-            "台東 (Taitung)": "Taitung",
-            "澎湖 (Penghu)": "Penghu",
-            "金門 (Kinmen)": "Kinmen",
-            "馬祖 (Matsu)": "Matsu"
-        }
         
         default_display = "台北 (Taipei)"
         for display, english in taiwan_cities.items():
