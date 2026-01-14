@@ -58,8 +58,8 @@ except:
     supabase_key = ""
     default_city = "Taipei"
 
-# 🔧 預先定義台灣城市資料（避免未登入時出錯）
-taiwan_cities = {
+# 🔧 預先定義台灣城市資料和預設城市
+TAIWAN_CITIES = {
     "台北 (Taipei)": "Taipei",
     "新北 (New Taipei)": "New Taipei",
     "桃園 (Taoyuan)": "Taoyuan",
@@ -81,113 +81,6 @@ taiwan_cities = {
     "金門 (Kinmen)": "Kinmen",
     "馬祖 (Matsu)": "Matsu"
 }
-
-# 預設城市（未登入時使用）
-city = default_city
-
-with st.sidebar:
-    st.header("🔑 API 設定")
-    
-    if use_secrets:
-        st.success("✅ 使用雲端設定")
-        st.caption("API Keys 已從安全儲存區載入")
-        
-        if st.checkbox("🔧 手動覆寫設定"):
-            google_key = st.text_input("Gemini API Key", value=google_key, type="password")
-            weather_key = st.text_input("OpenWeather Key", value=weather_key, type="password")
-            supabase_url = st.text_input("Supabase URL", value=supabase_url)
-            supabase_key = st.text_input("Supabase Anon Key", value=supabase_key, type="password")
-    else:
-        st.info("💡 本地模式: 請輸入 API Keys")
-        google_key = st.text_input("Gemini API Key", type="password", help="前往 Google AI Studio 取得")
-        weather_key = st.text_input("OpenWeather Key", type="password", help="前往 openweathermap.org 註冊")
-        
-        st.divider()
-        st.subheader("☁️ Supabase 設定")
-        supabase_url = st.text_input("Supabase URL", help="格式: https://xxx.supabase.co")
-        supabase_key = st.text_input("Supabase Anon Key", type="password")
-    
-    # 連接 Supabase
-    if supabase_url and supabase_key:
-        try:
-            st.session_state.supabase_client = create_client(supabase_url, supabase_key)
-            if not use_secrets:
-                st.success("✅ Supabase 已連接")
-        except Exception as e:
-            st.error(f"❌ Supabase 連接失敗: {str(e)}")
-    
-    st.divider()
-    
-    # ⚠️ Gemini API 限制提醒
-    with st.expander("⚡ Gemini API 使用提醒", expanded=False):
-        st.success("""
-        **批量模式優勢：**
-        - ✅ 10 張圖 = 1 次 API 呼叫
-        - ✅ 大幅減少 RPM 限制風險
-        - ✅ 處理速度提升 10 倍
-        - 建議每批 5-10 張
-        """)
-    
-    # 🆕 只在已登入時顯示城市選單和天氣
-    if st.session_state.user_id:
-        st.divider()
-        st.subheader("🌍 天氣設定")
-        
-        default_display = "台北 (Taipei)"
-        for display, english in taiwan_cities.items():
-            if english.lower() == default_city.lower():
-                default_display = display
-                break
-        
-        city_display = st.selectbox(
-            "選擇城市", 
-            options=list(taiwan_cities.keys()),
-            index=list(taiwan_cities.keys()).index(default_display),
-            help="選擇台灣縣市以獲取天氣資訊",
-            key="city_selector"
-        )
-        
-        city = taiwan_cities[city_display]
-        
-        # 🆕 自動更新天氣 (1小時刷新一次)
-        if weather_key:
-            now = datetime.now()
-            need_update = False
-            
-            # 檢查是否需要更新天氣
-            if st.session_state.weather_data is None:
-                need_update = True
-            elif st.session_state.selected_city != city:
-                need_update = True
-                st.session_state.selected_city = city
-            elif st.session_state.weather_update_time is None:
-                need_update = True
-            elif (now - st.session_state.weather_update_time) > timedelta(hours=1):
-                need_update = True
-            
-            if need_update:
-                with st.spinner("更新天氣資訊..."):
-                    weather = get_weather(city, weather_key)
-                    if weather:
-                        st.session_state.weather_data = weather
-                        st.session_state.weather_update_time = now
-                        st.session_state.selected_city = city
-            
-            # 顯示天氣資訊
-            if st.session_state.weather_data:
-                st.success("📡 即時天氣")
-                weather = st.session_state.weather_data
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("🌡️", f"{weather['temp']}°C")
-                with col2:
-                    st.metric("🤔", f"{weather['feels_like']}°C")
-                st.caption(f"☁️ {weather['desc']}")
-                
-                # 顯示更新時間
-                if st.session_state.weather_update_time:
-                    update_time = st.session_state.weather_update_time.strftime("%H:%M")
-                    st.caption(f"更新時間: {update_time}")
 
 # --- 2. 核心功能函數 ---
 
@@ -458,7 +351,6 @@ def register_user(username, password):
 def reset_password(username, new_password):
     """重設密碼"""
     try:
-        # 檢查使用者是否存在
         result = st.session_state.supabase_client.table("users")\
             .select("id")\
             .eq("username", username)\
@@ -467,7 +359,6 @@ def reset_password(username, new_password):
         if not result.data:
             return False, "使用者不存在"
         
-        # 更新密碼
         st.session_state.supabase_client.table("users")\
             .update({"password": new_password})\
             .eq("username", username)\
@@ -478,9 +369,112 @@ def reset_password(username, new_password):
     except Exception as e:
         return False, str(e)
 
-# --- 3. 介面操作 ---
+# --- 3. Sidebar 設定 ---
 
-# 🆕 登入/註冊系統 (改進版)
+with st.sidebar:
+    st.header("🔑 API 設定")
+    
+    if use_secrets:
+        st.success("✅ 使用雲端設定")
+        st.caption("API Keys 已從安全儲存區載入")
+        
+        if st.checkbox("🔧 手動覆寫設定"):
+            google_key = st.text_input("Gemini API Key", value=google_key, type="password")
+            weather_key = st.text_input("OpenWeather Key", value=weather_key, type="password")
+            supabase_url = st.text_input("Supabase URL", value=supabase_url)
+            supabase_key = st.text_input("Supabase Anon Key", value=supabase_key, type="password")
+    else:
+        st.info("💡 本地模式: 請輸入 API Keys")
+        google_key = st.text_input("Gemini API Key", type="password", help="前往 Google AI Studio 取得")
+        weather_key = st.text_input("OpenWeather Key", type="password", help="前往 openweathermap.org 註冊")
+        
+        st.divider()
+        st.subheader("☁️ Supabase 設定")
+        supabase_url = st.text_input("Supabase URL", help="格式: https://xxx.supabase.co")
+        supabase_key = st.text_input("Supabase Anon Key", type="password")
+    
+    # 連接 Supabase
+    if supabase_url and supabase_key:
+        try:
+            st.session_state.supabase_client = create_client(supabase_url, supabase_key)
+            if not use_secrets:
+                st.success("✅ Supabase 已連接")
+        except Exception as e:
+            st.error(f"❌ Supabase 連接失敗: {str(e)}")
+    
+    st.divider()
+    
+    with st.expander("⚡ Gemini API 使用提醒", expanded=False):
+        st.success("""
+        **批量模式優勢：**
+        - ✅ 10 張圖 = 1 次 API 呼叫
+        - ✅ 大幅減少 RPM 限制風險
+        - ✅ 處理速度提升 10 倍
+        - 建議每批 5-10 張
+        """)
+    
+    # 🆕 只在已登入時顯示城市選單和天氣
+    if st.session_state.user_id:
+        st.divider()
+        st.subheader("🌍 天氣設定")
+        
+        # 找出預設顯示值
+        default_display = "台北 (Taipei)"
+        for display, english in TAIWAN_CITIES.items():
+            if english.lower() == default_city.lower():
+                default_display = display
+                break
+        
+        city_display = st.selectbox(
+            "選擇城市", 
+            options=list(TAIWAN_CITIES.keys()),
+            index=list(TAIWAN_CITIES.keys()).index(default_display),
+            help="選擇台灣縣市以獲取天氣資訊",
+            key="city_selector"
+        )
+        
+        current_city = TAIWAN_CITIES[city_display]
+        
+        # 🆕 自動更新天氣 (1小時刷新一次)
+        if weather_key:
+            now = datetime.now()
+            need_update = False
+            
+            if st.session_state.weather_data is None:
+                need_update = True
+            elif st.session_state.selected_city != current_city:
+                need_update = True
+                st.session_state.selected_city = current_city
+            elif st.session_state.weather_update_time is None:
+                need_update = True
+            elif (now - st.session_state.weather_update_time) > timedelta(hours=1):
+                need_update = True
+            
+            if need_update:
+                with st.spinner("更新天氣資訊..."):
+                    weather = get_weather(current_city, weather_key)
+                    if weather:
+                        st.session_state.weather_data = weather
+                        st.session_state.weather_update_time = now
+                        st.session_state.selected_city = current_city
+            
+            # 顯示天氣資訊
+            if st.session_state.weather_data:
+                st.success("📡 即時天氣")
+                weather = st.session_state.weather_data
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("🌡️", f"{weather['temp']}°C")
+                with col2:
+                    st.metric("🤔", f"{weather['feels_like']}°C")
+                st.caption(f"☁️ {weather['desc']}")
+                
+                if st.session_state.weather_update_time:
+                    update_time = st.session_state.weather_update_time.strftime("%H:%M")
+                    st.caption(f"更新時間: {update_time}")
+
+# --- 4. 登入/註冊系統 ---
+
 if not st.session_state.user_id:
     st.info("👋 請先登入或註冊以使用個人衣櫥")
     
@@ -530,7 +524,6 @@ if not st.session_state.user_id:
                     success, result = register_user(reg_username, reg_password)
                     if success:
                         st.success("註冊成功! 正在自動登入... ✅")
-                        # 🆕 註冊成功後自動登入
                         time.sleep(1)
                         login_success, user_id = login_user(reg_username, reg_password)
                         if login_success:
@@ -540,7 +533,6 @@ if not st.session_state.user_id:
                     else:
                         st.error(f"註冊失敗: {result}")
     
-    # 🆕 忘記密碼功能
     with tab_forgot:
         with st.form("forgot_form", clear_on_submit=True):
             st.subheader("重設密碼")
@@ -572,7 +564,6 @@ if not st.session_state.user_id:
 st.sidebar.divider()
 st.sidebar.success(f"👤 目前使用者: **{st.session_state.username}**")
 if st.sidebar.button("🚪 登出", use_container_width=True):
-    # 🆕 登出時清除所有狀態
     st.session_state.user_id = None
     st.session_state.username = None
     st.session_state.weather_data = None
@@ -592,6 +583,8 @@ def check_setup(need_weather=False):
         st.warning("⚠️ 請在左側輸入 OpenWeather API Key")
         return False
     return True
+
+# --- 5. 主要功能分頁 ---
 
 tab1, tab2, tab3 = st.tabs(["📸 上傳入庫", "👔 我的衣櫥", "💡 今日推薦"])
 
@@ -895,7 +888,7 @@ with tab3:
     selected_style = st.selectbox(
         "🎨 選擇穿搭風格",
         options=list(style_options.keys()),
-        index=11,  # 預設為「多元混搭」
+        index=11,
         help="選擇您想要的穿搭風格，AI 會根據此風格進行推薦"
     )
     
@@ -910,11 +903,14 @@ with tab3:
         
         # 使用快取的天氣資料
         if st.session_state.weather_data is None:
+            # 使用選中的城市或預設城市
+            target_city = st.session_state.selected_city if st.session_state.selected_city else default_city
             with st.spinner("正在查詢天氣..."):
-                weather = get_weather(st.session_state.selected_city or city, weather_key)
+                weather = get_weather(target_city, weather_key)
                 if weather:
                     st.session_state.weather_data = weather
                     st.session_state.weather_update_time = datetime.now()
+                    st.session_state.selected_city = target_city
         
         weather = st.session_state.weather_data
         
@@ -951,11 +947,13 @@ with tab3:
                 genai.configure(api_key=google_key)
                 model = genai.GenerativeModel('gemini-2.0-flash-exp')
                 
+                target_city = st.session_state.selected_city if st.session_state.selected_city else default_city
+                
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
                 
                 **天氣資訊:**
-                - 城市: {st.session_state.selected_city or city}
+                - 城市: {target_city}
                 - 溫度: {weather['temp']}°C (體感 {weather['feels_like']}°C)
                 - 天氣: {weather['desc']}
                 
@@ -1004,7 +1002,7 @@ with tab3:
     - 使用 Gemini 2.0 Flash 模型
     """)
 
-# --- 4. 底部資訊 ---
+# --- 6. 底部資訊 ---
 st.divider()
 with st.expander("📋 Supabase 資料表結構說明"):
     st.code("""
