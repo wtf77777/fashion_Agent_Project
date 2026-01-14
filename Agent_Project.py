@@ -279,7 +279,7 @@ def delete_item(item_id):
     except Exception as e:
         st.error(f"刪除失敗: {str(e)}")
         return False
-ef batch_delete_items(item_ids):
+def batch_delete_items(item_ids):
     """批量刪除衣服"""
     try:
         success_count = 0
@@ -299,29 +299,6 @@ ef batch_delete_items(item_ids):
         return True, success_count, fail_count
     except Exception as e:
         return False, 0, 0
-def register_user(username, password):
-    """註冊新使用者"""
-    try:
-        existing = st.session_state.supabase_client.table("users")\
-            .select("*")\
-            .eq("username", username)\
-            .execute()
-        
-        if existing.data:
-            return False, "使用者名稱已存在"
-        
-        data = {
-            "username": username,
-            "password": password,
-            "created_at": datetime.now().isoformat()
-        }
-        
-        result = st.session_state.supabase_client.table("users").insert(data).execute()
-        return True, result.data[0]['id']
-        
-    except Exception as e:
-        return False, str(e)
-
 def login_user(username, password):
     """使用者登入"""
     try:
@@ -811,4 +788,5 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     st.caption("⚠️ 請在 Supabase 中新增 image_hash 欄位和索引")
 
 st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini 2.5 Flash & Supabase")
+
 
