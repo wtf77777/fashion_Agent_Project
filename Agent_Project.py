@@ -184,31 +184,30 @@ with st.sidebar:
         - 建議每批 5-10 張
         """)
     
-    # ✨ 城市選單（所有人都可見，不論是否登入）
-    st.divider()
-    st.subheader("🌍 城市設定")
-    
-    city_display = st.selectbox(
-        "選擇城市", 
-        options=list(TAIWAN_CITIES.keys()),
-        index=list(TAIWAN_CITIES.keys()).index(default_city_display),
-        help="選擇台灣縣市以獲取天氣資訊",
-        key="city_selector"
-    )
-    
-    # 更新選中的城市
-    selected_city = TAIWAN_CITIES[city_display]
-    if st.session_state.selected_city != selected_city:
-        st.session_state.selected_city = selected_city
-        # 清除舊天氣資料以觸發更新
-        st.session_state.weather_data = None
-    
-    city = selected_city
-    
-    # ✨ 顯示已登入使用者資訊
+    # ✨ 只在登入後顯示城市選單和使用者資訊
     if st.session_state.user_id:
         st.divider()
         st.success(f"👤 目前使用者: **{st.session_state.username}**")
+        
+        st.divider()
+        st.subheader("🌍 城市設定")
+        
+        city_display = st.selectbox(
+            "選擇城市", 
+            options=list(TAIWAN_CITIES.keys()),
+            index=list(TAIWAN_CITIES.keys()).index(default_city_display),
+            help="選擇台灣縣市以獲取天氣資訊",
+            key="city_selector"
+        )
+        
+        # 更新選中的城市
+        selected_city = TAIWAN_CITIES[city_display]
+        if st.session_state.selected_city != selected_city:
+            st.session_state.selected_city = selected_city
+            # 清除舊天氣資料以觸發更新
+            st.session_state.weather_data = None
+        
+        st.divider()
         if st.button("🚪 登出", use_container_width=True):
             st.session_state.user_id = None
             st.session_state.username = None
@@ -216,6 +215,9 @@ with st.sidebar:
             st.session_state.weather_update_time = None
             st.session_state.selected_city = None
             st.rerun()
+
+# 設定當前使用的城市（登入後用選擇的，未登入用預設台北）
+city = st.session_state.selected_city if st.session_state.selected_city else default_city
 
 # --- 2. 核心功能函數 ---
 
@@ -552,7 +554,7 @@ The outfit should look coordinated and fashionable."""
 
 # --- 3. 介面操作 ---
 
-# ✨ 初始化選中的城市（在登入檢查之前）
+# ✨ 初始化選中的城市為預設台北
 if st.session_state.selected_city is None:
     st.session_state.selected_city = default_city
 
