@@ -90,6 +90,10 @@ for display, english in TAIWAN_CITIES.items():
         default_city_display = display
         break
 
+# ✨ 初始化選中的城市（避免 None 錯誤）
+if st.session_state.selected_city is None:
+    st.session_state.selected_city = default_city
+
 # ✨ 天氣資訊顯示區域（紅框位置）
 if st.session_state.user_id and weather_key:
     weather_container = st.container()
@@ -99,12 +103,10 @@ if st.session_state.user_id and weather_key:
         now = datetime.now()
         need_update = False
         
-        # 使用當前選中的城市，如果沒有則使用預設城市
-        current_city = st.session_state.selected_city if st.session_state.selected_city else default_city
+        # 使用當前選中的城市
+        current_city = st.session_state.selected_city
         
         if st.session_state.weather_data is None:
-            need_update = True
-        elif st.session_state.selected_city != current_city:
             need_update = True
         elif st.session_state.weather_update_time is None:
             need_update = True
@@ -112,11 +114,13 @@ if st.session_state.user_id and weather_key:
             need_update = True
         
         if need_update:
-            weather = get_weather(current_city, weather_key)
-            if weather:
-                st.session_state.weather_data = weather
-                st.session_state.weather_update_time = now
-                st.session_state.selected_city = current_city
+            try:
+                weather = get_weather(current_city, weather_key)
+                if weather:
+                    st.session_state.weather_data = weather
+                    st.session_state.weather_update_time = now
+            except Exception as e:
+                st.error(f"天氣更新失敗: {str(e)}")
         
         # 顯示天氣資訊
         if st.session_state.weather_data:
@@ -262,7 +266,7 @@ def auto_tagging(img_bytes, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -305,7 +309,7 @@ def batch_auto_tagging(img_bytes_list, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         content_parts = [f"""請仔細分析這 {len(img_bytes_list)} 件衣服，為每件衣服分別回傳 JSON 格式的標籤。
 
@@ -501,7 +505,7 @@ def generate_outfit_image(recommended_items, weather_info, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         # 構建服裝描述
         outfit_description = []
@@ -902,18 +906,18 @@ with tab3:
         if not check_setup(need_weather=True):
             st.stop()
         
+        # 確保有城市資料
+        current_city = st.session_state.selected_city if st.session_state.selected_city else default_city
+        
         # 使用快取的天氣資料或重新獲取
         if st.session_state.weather_data is None:
-            current_city = st.session_state.selected_city if st.session_state.selected_city else default_city
             with st.spinner("正在查詢天氣..."):
                 weather = get_weather(current_city, weather_key)
                 if weather:
                     st.session_state.weather_data = weather
                     st.session_state.weather_update_time = datetime.now()
-                    st.session_state.selected_city = current_city
         
         weather = st.session_state.weather_data
-        current_city = st.session_state.selected_city if st.session_state.selected_city else default_city
         
         with st.spinner("正在讀取衣櫥..."):
             wardrobe = get_wardrobe()
@@ -946,7 +950,7 @@ with tab3:
                 rate_limit_protection()
                 
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-3-flash-preview')
+                model = genai.GenerativeModel('gemini-2.0-flash-exp')
                 
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
@@ -1075,4 +1079,3 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
-
