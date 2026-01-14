@@ -159,7 +159,7 @@ def auto_tagging(img_bytes, api_key):
     """AI 自動標籤衣服"""
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-embedding-1.0')
+        model = genai.GenerativeModel('gemini-2.5-flash-native-audio-dialog')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -612,7 +612,7 @@ with tab3:
         with st.spinner("AI 時尚顧問正在為您搭配..."):
             try:
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-pro')
+                model = genai.GenerativeModel('gemini-2.5-flash-native-audio-dialog')
                 
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
@@ -685,6 +685,7 @@ CREATE TABLE my_wardrobe (
     st.caption("請在 Supabase 中建立這兩個資料表")
 
 st.caption("Made with ❤️ by AI Fashion Agent | Powered by Gemini & Supabase")
+
 
 
 
