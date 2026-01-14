@@ -905,6 +905,33 @@ with tab2:
 
 with tab3:
     st.header("今日穿搭推薦")
+        # 🆕 風格選單
+    style_options = {
+        "🇫🇷 法式優雅": "法式優雅風格，強調輕鬆隨性但精緻的搭配，色調以黑白灰為主，搭配經典單品如條紋衫、西裝外套、牛仔褲",
+        "🇺🇸 美式休閒": "美式休閒風格，強調舒適實用，常見單品包括 T-shirt、牛仔褲、運動鞋、棒球帽",
+        "🇬🇧 英倫紳士": "英倫紳士風格，講究剪裁與質感，常見格紋、西裝、風衣、皮鞋等正式單品",
+        "🎨 巴洛克華麗": "巴洛克風格，強調誇張華麗、金色裝飾、刺繡、蕾絲等繁複元素",
+        "💣 地雷系": "日系地雷系風格，以黑色為主，搭配蕾絲、蝴蝶結、哥德元素，呈現病嬌可愛感",
+        "🎮 宅男舒適": "宅男風格，強調舒適實用，寬鬆T恤、運動褲、帽T、球鞋為主",
+        "🌊 潮流街頭": "街頭潮流風格，強調個性與品牌，oversize、球鞋、帽子、配件等",
+        "💼 都會型男": "都會型男風格，簡約俐落，商務休閒兼具，重視品質與細節",
+        "🏃 運動機能": "運動機能風格，強調功能性與科技感，防水、透氣、速乾材質",
+        "🌸 韓系清新": "韓系風格，色調柔和，oversized、寬鬆剪裁、淺色系為主",
+        "🎭 暗黑哥德": "哥德風格，以黑色為主，皮革、鉚釘、十字架等元素，神秘感十足",
+        "🌈 多元混搭": "不限定風格，AI 將根據天氣與衣櫥自由搭配出創意組合"
+    }
+    
+    selected_style = st.selectbox(
+        "🎨 選擇穿搭風格",
+        options=list(style_options.keys()),
+        index=11,
+        help="選擇您想要的穿搭風格，AI 會根據此風格進行推薦"
+    )
+    
+    style_description = style_options[selected_style]
+    
+    with st.expander("ℹ️ 風格說明", expanded=False):
+        st.info(style_description)
     
     if st.button("✨ 獲取今日推薦", type="primary", use_container_width=True):
         if not check_setup(need_weather=True):
@@ -964,19 +991,18 @@ with tab3:
                 - 溫度: {weather['temp']}°C (體感 {weather['feels_like']}°C)
                 - 天氣: {weather['desc']}
                 
-                **2026 流行趨勢:**
-                - 機能風格當道
-                - 雲舞白、科技藍為主流色
-                - 永續材質受歡迎
+                **指定風格:**
+                {selected_style}
+                {style_description}
                 
                 **使用者衣櫥:**
                 {json.dumps(wardrobe_summary, ensure_ascii=False, indent=2)}
                 
                 **請提供:**
-                1. 推薦的完整穿搭組合 (從頭到腳)，**明確指出每件衣服的名稱**
-                2. 每件單品的選擇理由
-                3. 整體風格說明
-                4. 搭配小技巧
+                1. 推薦的完整穿搭組合 (從頭到腳)，必須符合指定的「{selected_style}」風格
+                2. 每件單品的選擇理由 (考慮天氣與風格)
+                3. 整體風格說明 (如何體現{selected_style}的特色)
+                4. 搭配小技巧 (針對此風格的進階建議)
                 
                 請用親切、專業的口吻回答,使用繁體中文。
                 """
@@ -984,6 +1010,8 @@ with tab3:
                 response = model.generate_content(prompt)
                 
                 st.markdown("### 🎨 今日穿搭建議")
+                st.markdown(f"**風格主題:** {selected_style}")
+                st.divider()
                 st.markdown(response.text)
                 
                 st.divider()
@@ -1083,6 +1111,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
