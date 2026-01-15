@@ -81,7 +81,7 @@ def auto_tagging(img_bytes, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -124,7 +124,7 @@ def batch_auto_tagging(img_bytes_list, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         content_parts = [f"""請仔細分析這 {len(img_bytes_list)} 件衣服，為每件衣服分別回傳 JSON 格式的標籤。
 
@@ -320,7 +320,7 @@ def generate_outfit_image(recommended_items, weather_info, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         # 構建服裝描述
         outfit_description = []
@@ -1034,7 +1034,7 @@ with tab3:
                 rate_limit_protection()
                 
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-3-flash-preview')
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
@@ -1273,6 +1273,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
