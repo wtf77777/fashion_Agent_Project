@@ -1072,134 +1072,134 @@ with tab3:
                 # ✨ 新功能 1: 顯示推薦的衣服圖片
                 st.markdown("### 👔 推薦單品展示")
 
-recommended_items = parse_outfit_recommendation(response.text, wardrobe)
-
-if recommended_items:
-    # ✨ 新增：輪播樣式和控制
-    st.markdown("""
-        <style>
-        .carousel-container {
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-            border-radius: 15px;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .carousel-wrapper {
-            display: flex;
-            transition: transform 0.5s ease-in-out;
-        }
-        .carousel-item {
-            min-width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-        }
-        .carousel-item img {
-            max-width: 400px;
-            max-height: 400px;
-            border-radius: 10px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-            object-fit: contain;
-        }
-        .carousel-info {
-            margin-top: 20px;
-            text-align: center;
-            background: white;
-            padding: 15px 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-        .carousel-controls {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 20px;
-        }
-        .carousel-btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 10px 25px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-        .carousel-btn:hover {
-            background: #764ba2;
-            transform: scale(1.05);
-        }
-        .carousel-indicator {
-            color: #667eea;
-            font-weight: bold;
-            font-size: 18px;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # ✨ 初始化 session state
-    if 'carousel_index' not in st.session_state:
-        st.session_state.carousel_index = 0
-    
-    # ✨ 控制按鈕
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
-    with col1:
-        if st.button("⬅️ 上一件", key="prev_item", use_container_width=True):
-            st.session_state.carousel_index = (st.session_state.carousel_index - 1) % len(recommended_items)
-    
-    with col2:
-        st.markdown(f"<div class='carousel-indicator'>第 {st.session_state.carousel_index + 1} / {len(recommended_items)} 件</div>", unsafe_allow_html=True)
-    
-    with col3:
-        if st.button("下一件 ➡️", key="next_item", use_container_width=True):
-            st.session_state.carousel_index = (st.session_state.carousel_index + 1) % len(recommended_items)
-    
-    # ✨ 顯示當前選中的衣物
-    current_item = recommended_items[st.session_state.carousel_index]
-    
-    with st.container():
-        st.markdown("<div class='carousel-container'>", unsafe_allow_html=True)
-        
-        col_img, col_info = st.columns([3, 2])
-        
-        with col_img:
-            if 'image_data' in current_item and current_item['image_data']:
-                try:
-                    img_bytes = base64.b64decode(current_item['image_data'])
-                    img = Image.open(io.BytesIO(img_bytes))
-                    st.image(img, use_container_width=True)
-                except:
-                    st.error("🖼️ 圖片載入失敗")
-            else:
-                st.info("📷 無圖片資料")
-        
-        with col_info:
-            st.markdown("### 📋 單品資訊")
-            st.markdown(f"**名稱**: {current_item.get('name', '未命名')}")
-            st.markdown(f"**類別**: {current_item.get('category', 'N/A')}")
-            st.markdown(f"**顏色**: {current_item.get('color', 'N/A')}")
-            st.markdown(f"**風格**: {current_item.get('style', 'N/A')}")
-            st.markdown(f"**保暖度**: {'🔥' * current_item.get('warmth', 0)}")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    # ✨ 快速導航點
-    st.markdown("---")
-    quick_nav_cols = st.columns(len(recommended_items))
-    for idx, col in enumerate(quick_nav_cols):
-        with col:
-            emoji = "🔵" if idx == st.session_state.carousel_index else "⚪"
-            if st.button(f"{emoji}", key=f"nav_{idx}", use_container_width=True):
-                st.session_state.carousel_index = idx
-                st.rerun()
-
-else:
-    st.info("💡 AI 推薦的衣物未在您的衣櫥中找到對應圖片")
+                recommended_items = parse_outfit_recommendation(response.text, wardrobe)
+                
+                if recommended_items:
+                    # ✨ 新增：輪播樣式和控制
+                    st.markdown("""
+                        <style>
+                        .carousel-container {
+                            position: relative;
+                            width: 100%;
+                            overflow: hidden;
+                            border-radius: 15px;
+                            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                            padding: 20px;
+                            margin: 20px 0;
+                        }
+                        .carousel-wrapper {
+                            display: flex;
+                            transition: transform 0.5s ease-in-out;
+                        }
+                        .carousel-item {
+                            min-width: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            padding: 20px;
+                        }
+                        .carousel-item img {
+                            max-width: 400px;
+                            max-height: 400px;
+                            border-radius: 10px;
+                            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+                            object-fit: contain;
+                        }
+                        .carousel-info {
+                            margin-top: 20px;
+                            text-align: center;
+                            background: white;
+                            padding: 15px 30px;
+                            border-radius: 10px;
+                            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+                        }
+                        .carousel-controls {
+                            display: flex;
+                            justify-content: center;
+                            gap: 15px;
+                            margin-top: 20px;
+                        }
+                        .carousel-btn {
+                            background: #667eea;
+                            color: white;
+                            border: none;
+                            padding: 10px 25px;
+                            border-radius: 25px;
+                            cursor: pointer;
+                            font-size: 16px;
+                            transition: all 0.3s;
+                        }
+                        .carousel-btn:hover {
+                            background: #764ba2;
+                            transform: scale(1.05);
+                        }
+                        .carousel-indicator {
+                            color: #667eea;
+                            font-weight: bold;
+                            font-size: 18px;
+                        }
+                        </style>
+                    """, unsafe_allow_html=True)
+                    
+                    # ✨ 初始化 session state
+                    if 'carousel_index' not in st.session_state:
+                        st.session_state.carousel_index = 0
+                    
+                    # ✨ 控制按鈕
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    
+                    with col1:
+                        if st.button("⬅️ 上一件", key="prev_item", use_container_width=True):
+                            st.session_state.carousel_index = (st.session_state.carousel_index - 1) % len(recommended_items)
+                    
+                    with col2:
+                        st.markdown(f"<div class='carousel-indicator'>第 {st.session_state.carousel_index + 1} / {len(recommended_items)} 件</div>", unsafe_allow_html=True)
+                    
+                    with col3:
+                        if st.button("下一件 ➡️", key="next_item", use_container_width=True):
+                            st.session_state.carousel_index = (st.session_state.carousel_index + 1) % len(recommended_items)
+                    
+                    # ✨ 顯示當前選中的衣物
+                    current_item = recommended_items[st.session_state.carousel_index]
+                    
+                    with st.container():
+                        st.markdown("<div class='carousel-container'>", unsafe_allow_html=True)
+                        
+                        col_img, col_info = st.columns([3, 2])
+                        
+                        with col_img:
+                            if 'image_data' in current_item and current_item['image_data']:
+                                try:
+                                    img_bytes = base64.b64decode(current_item['image_data'])
+                                    img = Image.open(io.BytesIO(img_bytes))
+                                    st.image(img, use_container_width=True)
+                                except:
+                                    st.error("🖼️ 圖片載入失敗")
+                            else:
+                                st.info("📷 無圖片資料")
+                        
+                        with col_info:
+                            st.markdown("### 📋 單品資訊")
+                            st.markdown(f"**名稱**: {current_item.get('name', '未命名')}")
+                            st.markdown(f"**類別**: {current_item.get('category', 'N/A')}")
+                            st.markdown(f"**顏色**: {current_item.get('color', 'N/A')}")
+                            st.markdown(f"**風格**: {current_item.get('style', 'N/A')}")
+                            st.markdown(f"**保暖度**: {'🔥' * current_item.get('warmth', 0)}")
+                        
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    # ✨ 快速導航點
+                    st.markdown("---")
+                    quick_nav_cols = st.columns(len(recommended_items))
+                    for idx, col in enumerate(quick_nav_cols):
+                        with col:
+                            emoji = "🔵" if idx == st.session_state.carousel_index else "⚪"
+                            if st.button(f"{emoji}", key=f"nav_{idx}", use_container_width=True):
+                                st.session_state.carousel_index = idx
+                                st.rerun()
+                
+                else:
+                    st.info("💡 AI 推薦的衣物未在您的衣櫥中找到對應圖片")
                 
                 st.divider()
                 
@@ -1273,6 +1273,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
