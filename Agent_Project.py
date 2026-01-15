@@ -361,11 +361,12 @@ The outfit should look coordinated and fashionable."""
 st.set_page_config(page_title="2026 AI 時尚顧問 (雲端版)", page_icon="☁️")
 st.markdown("""
     <style>
-    /* 原有的 CSS ... */
+    /* 隱藏頂部所有圖標 (Share, Star, GitHub 等) */
     header[data-testid="stHeader"] {
         visibility: hidden;
         display: none;
     }
+    /* 修正頂部空白 */
     .block-container {
         padding-top: 2rem;
     }
@@ -389,6 +390,7 @@ st.markdown("""
         display: flex;
         align-items: center;
         justify-content: center;
+        text-decoration: none;
     }
     .scroll-to-top:hover {
         transform: translateY(-5px);
@@ -399,14 +401,10 @@ st.markdown("""
         transform: translateY(-2px);
     }
     </style>
+    
+    <a href="#ai-cloud" class="scroll-to-top" title="回到頂端">⬆️</a>
     """, unsafe_allow_html=True)
 
-# ✨ 新增：使用 Streamlit 原生方法創建 TOP 按鈕
-st.markdown("""
-    <a href="#2026-ai-" class="scroll-to-top" title="回到頂端">
-        ⬆️
-    </a>
-    """, unsafe_allow_html=True)
 st.title("👗 AI 個人穿搭 Agent (Cloud)")
 
 # 初始化 session state
@@ -935,7 +933,17 @@ with tab2:
 with tab3:
     st.header("今日穿搭推薦")
     
-    # ✨ 城市設定區域 - 移到這裡
+    # ✨ 初始化 session state 來保存 AI 推薦結果
+    if 'ai_recommendation' not in st.session_state:
+        st.session_state.ai_recommendation = None
+    if 'recommended_items_cache' not in st.session_state:
+        st.session_state.recommended_items_cache = None
+    if 'current_weather' not in st.session_state:
+        st.session_state.current_weather = None
+    if 'current_style' not in st.session_state:
+        st.session_state.current_style = None
+    
+    # ✨ 城市設定區域
     with st.expander("🌍 城市設定", expanded=True):
         city_display = st.selectbox(
             "選擇城市", 
@@ -946,7 +954,6 @@ with tab3:
             on_change=handle_city_change
         )
         
-        # 顯示當前選擇的城市
         st.caption(f"📍 當前城市: **{st.session_state.selected_city}**")
     
     st.divider()
@@ -957,7 +964,7 @@ with tab3:
         "🇺🇸 美式休閒": "美式休閒風格，強調舒適實用，常見單品包括 T-shirt、牛仔褲、運動鞋、棒球帽",
         "🇬🇧 英倫紳士": "英倫紳士風格，講究剪裁與質感，常見格紋、西裝、風衣、皮鞋等正式單品",
         "🎨 巴洛克華麗": "巴洛克風格，強調誇張華麗、金色裝飾、刺繡、蕾絲等繁複元素",
-        "💣 地雷系": "日系地雷系風格，以黑色為主，搭配蕾絲、蝴蝶結、哥德元素，呈現病嬌可愛感",
+        "👣 地雷系": "日系地雷系風格，以黑色為主，搭配蕾絲、蝴蝶結、哥德元素，呈現病嬌可愛感",
         "🎮 宅男舒適": "宅男風格，強調舒適實用，寬鬆T恤、運動褲、帽T、球鞋為主",
         "🌊 潮流街頭": "街頭潮流風格，強調個性與品牌，oversize、球鞋、帽子、配件等",
         "💼 都會型男": "都會型男風格，簡約俐落，商務休閒兼具，重視品質與細節",
@@ -978,148 +985,218 @@ with tab3:
     
     with st.expander("ℹ️ 風格說明", expanded=False):
         st.info(style_description)
-    # ✨ 初始化 session state 來保存 AI 推薦結果
-    if 'ai_recommendation' not in st.session_state:
-        st.session_state.ai_recommendation = None
-    if 'recommended_items_cache' not in st.session_state:
-        st.session_state.recommended_items_cache = None
     
+    # ✅ 獲取推薦按鈕
     if st.button("✨ 獲取今日推薦", type="primary", use_container_width=True):
-        # 清除舊的推薦和輪播索引
+        # 清除舊的推薦
         st.session_state.ai_recommendation = None
         st.session_state.recommended_items_cache = None
         st.session_state.carousel_index = 0
-    
-    if not check_setup(need_weather=True):
-        st.stop()
-    
-    # 確保有城市資料
-    current_city = st.session_state.selected_city if st.session_state.selected_city else default_city
-    
-    # ... (保持原有的天氣獲取邏輯)
-    
-    with st.spinner("AI 時尚顧問正在為您搭配..."):
-        try:
-            rate_limit_protection()
-            
-            genai.configure(api_key=google_key)
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            
-            # ... (保持原有的 prompt 邏輯)
-            
-            response = model.generate_content(prompt)
-            
-            # ✅ 保存 AI 推薦結果到 session state
-            st.session_state.ai_recommendation = response.text
-            
-            # 重新運行以顯示結果
-            st.rerun()
-            
-        except Exception as e:
-            st.error(f"AI 推薦失敗: {str(e)}")
-            if "quota" in str(e).lower() or "limit" in str(e).lower():
-                st.warning("💡 可能是 API 額度用完或超過速率限制,請稍後再試")
-
-# ✅ 如果已有推薦結果,直接顯示（不重新呼叫 AI）
-if st.session_state.ai_recommendation:
-    st.markdown("### 🎨 今日穿搭建議")
-    st.markdown(f"**風格主題:** {selected_style}")
-    st.divider()
-    st.markdown(st.session_state.ai_recommendation)
-    
-    st.divider()
-    
-    # ✨ 推薦單品展示
-    st.markdown("### 👔 推薦單品展示")
-    
-    # ✅ 只在第一次解析推薦結果
-    if st.session_state.recommended_items_cache is None:
-        wardrobe = get_wardrobe()
-        st.session_state.recommended_items_cache = parse_outfit_recommendation(
-            st.session_state.ai_recommendation, 
-            wardrobe
-        )
-    
-    recommended_items = st.session_state.recommended_items_cache
-    
-    if recommended_items:
-        # ... (保持原有的輪播代碼)
-        st.markdown("""
-            <style>
-            .carousel-container { ... }
-            </style>
-        """, unsafe_allow_html=True)
         
-        # ✨ 初始化 carousel_index
-        if 'carousel_index' not in st.session_state:
-            st.session_state.carousel_index = 0
+        if not check_setup(need_weather=True):
+            st.stop()
         
-        # ✨ 控制按鈕（不會觸發重新 AI 推薦）
-        col1, col2, col3 = st.columns([1, 2, 1])
+        current_city = st.session_state.selected_city if st.session_state.selected_city else default_city
         
-        with col1:
-            if st.button("⬅️ 上一件", key="prev_item", use_container_width=True):
-                st.session_state.carousel_index = (st.session_state.carousel_index - 1) % len(recommended_items)
-                st.rerun()  # ✅ 只重新渲染,不重跑 AI
+        if st.session_state.weather_data is None:
+            with st.spinner("正在查詢天氣..."):
+                weather = get_weather(current_city, weather_key)
+                if weather:
+                    st.session_state.weather_data = weather
+                    st.session_state.weather_update_time = datetime.now()
         
-        with col2:
-            st.markdown(f"<div class='carousel-indicator'>第 {st.session_state.carousel_index + 1} / {len(recommended_items)} 件</div>", unsafe_allow_html=True)
+        weather = st.session_state.weather_data
         
-        with col3:
-            if st.button("下一件 ➡️", key="next_item", use_container_width=True):
-                st.session_state.carousel_index = (st.session_state.carousel_index + 1) % len(recommended_items)
-                st.rerun()  # ✅ 只重新渲染,不重跑 AI
+        with st.spinner("正在讀取衣櫥..."):
+            wardrobe = get_wardrobe()
         
-        # ... (保持原有的顯示邏輯)
-        current_item = recommended_items[st.session_state.carousel_index]
+        if not weather:
+            st.error("無法獲取天氣資訊")
+            st.stop()
         
-        with st.container():
-            # ... (保持原有代碼)
+        if not wardrobe:
+            st.warning("衣櫥是空的,請先上傳一些衣服!")
+            st.stop()
         
-        # 快速導航點
-        st.markdown("---")
-        quick_nav_cols = st.columns(len(recommended_items))
-        for idx, col in enumerate(quick_nav_cols):
-            with col:
-                emoji = "🔵" if idx == st.session_state.carousel_index else "⚪"
-                if st.button(f"{emoji}", key=f"nav_{idx}", use_container_width=True):
-                    st.session_state.carousel_index = idx
-                    st.rerun()  # ✅ 只重新渲染
-    
-    else:
-        st.info("💡 AI 推薦的衣物未在您的衣櫥中找到對應圖片")
-    
-    st.divider()
-    
-    # ... (保持原有的穿搭視覺化代碼)
-                # ✨ 新功能 2: 生成穿搭人物圖像 (使用 DALL-E 風格的 prompt)
-                st.markdown("### 🎭 穿搭視覺化")
+        st.divider()
+        
+        wardrobe_summary = [
+            {k: v for k, v in item.items() if k != 'image_data'}
+            for item in wardrobe
+        ]
+        
+        with st.spinner("AI 時尚顧問正在為您搭配..."):
+            try:
+                rate_limit_protection()
                 
-                with st.spinner("正在生成穿搭示意圖..."):
-                    outfit_image, image_prompt = generate_outfit_image(recommended_items, weather, google_key)
-                    
-                    if image_prompt:
-                        st.info(f"📝 圖像描述: {image_prompt}")
-                        st.warning("""
-                        ⚠️ **功能說明**: 
-                        - Gemini 2.0 Flash 目前不支援直接圖像生成
-                        - 建議使用以下服務生成穿搭人物圖:
-                          1. 複製上方的圖像描述
-                          2. 前往 [DALL-E 3](https://openai.com/dall-e-3) 或 [Midjourney](https://www.midjourney.com/)
-                          3. 貼上描述即可生成專屬穿搭圖
-                        """)
-                        
-                        # 提供一個按鈕複製 prompt
-                        if st.button("📋 複製圖像描述", use_container_width=True):
-                            st.code(image_prompt, language=None)
-                            st.success("✅ 請手動複製上方文字到圖像生成服務")
+                genai.configure(api_key=google_key)
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 
-                st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
+                prompt = f"""
+                你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
+                
+                **天氣資訊:**
+                - 城市: {current_city}
+                - 溫度: {weather['temp']}°C (體感 {weather['feels_like']}°C)
+                - 天氣: {weather['desc']}
+                
+                **指定風格:**
+                {selected_style}
+                {style_description}
+                
+                **使用者衣櫥:**
+                {json.dumps(wardrobe_summary, ensure_ascii=False, indent=2)}
+                
+                **請提供:**
+                1. 推薦的完整穿搭組合 (從頭到腳)，必須符合指定的「{selected_style}」風格
+                2. 每件單品的選擇理由 (考慮天氣與風格)
+                3. 整體風格說明 (如何體現{selected_style}的特色)
+                4. 搭配小技巧 (針對此風格的進階建議)
+                
+                請用親切、專業的口吻回答,使用繁體中文。
+                """
+                
+                response = model.generate_content(prompt)
+                
+                st.session_state.ai_recommendation = response.text
+                st.session_state.current_weather = weather
+                st.session_state.current_style = selected_style
+                
+                st.rerun()
                 
             except Exception as e:
                 st.error(f"AI 推薦失敗: {str(e)}")
                 if "quota" in str(e).lower() or "limit" in str(e).lower():
                     st.warning("💡 可能是 API 額度用完或超過速率限制，請稍後再試")
+    
+    # ✅ 顯示已有的推薦結果（不重新呼叫 AI）
+    if st.session_state.ai_recommendation:
+        st.markdown("### 🎨 今日穿搭建議")
+        st.markdown(f"**風格主題:** {st.session_state.current_style}")
+        st.divider()
+        st.markdown(st.session_state.ai_recommendation)
+        
+        st.divider()
+        
+        # ✨ 推薦單品展示
+        st.markdown("### 👔 推薦單品展示")
+        
+        if st.session_state.recommended_items_cache is None:
+            wardrobe = get_wardrobe()
+            st.session_state.recommended_items_cache = parse_outfit_recommendation(
+                st.session_state.ai_recommendation, 
+                wardrobe
+            )
+        
+        recommended_items = st.session_state.recommended_items_cache
+        
+        if recommended_items:
+            st.markdown("""
+                <style>
+                .carousel-container {
+                    position: relative;
+                    width: 100%;
+                    overflow: hidden;
+                    border-radius: 15px;
+                    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                    padding: 20px;
+                    margin: 20px 0;
+                }
+                .carousel-indicator {
+                    text-align: center;
+                    color: #667eea;
+                    font-weight: bold;
+                    font-size: 18px;
+                    margin: 10px 0;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            if 'carousel_index' not in st.session_state:
+                st.session_state.carousel_index = 0
+            
+            col1, col2, col3 = st.columns([1, 2, 1])
+            
+            with col1:
+                if st.button("⬅️ 上一件", key="prev_item", use_container_width=True):
+                    st.session_state.carousel_index = (st.session_state.carousel_index - 1) % len(recommended_items)
+                    st.rerun()
+            
+            with col2:
+                st.markdown(f"<div class='carousel-indicator'>第 {st.session_state.carousel_index + 1} / {len(recommended_items)} 件</div>", unsafe_allow_html=True)
+            
+            with col3:
+                if st.button("下一件 ➡️", key="next_item", use_container_width=True):
+                    st.session_state.carousel_index = (st.session_state.carousel_index + 1) % len(recommended_items)
+                    st.rerun()
+            
+            current_item = recommended_items[st.session_state.carousel_index]
+            
+            with st.container():
+                st.markdown("<div class='carousel-container'>", unsafe_allow_html=True)
+                
+                col_img, col_info = st.columns([3, 2])
+                
+                with col_img:
+                    if 'image_data' in current_item and current_item['image_data']:
+                        try:
+                            img_bytes = base64.b64decode(current_item['image_data'])
+                            img = Image.open(io.BytesIO(img_bytes))
+                            st.image(img, use_container_width=True)
+                        except:
+                            st.error("🖼️ 圖片載入失敗")
+                    else:
+                        st.info("📷 無圖片資料")
+                
+                with col_info:
+                    st.markdown("### 📋 單品資訊")
+                    st.markdown(f"**名稱**: {current_item.get('name', '未命名')}")
+                    st.markdown(f"**類別**: {current_item.get('category', 'N/A')}")
+                    st.markdown(f"**顏色**: {current_item.get('color', 'N/A')}")
+                    st.markdown(f"**風格**: {current_item.get('style', 'N/A')}")
+                    st.markdown(f"**保暖度**: {'🔥' * current_item.get('warmth', 0)}")
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.markdown("---")
+            quick_nav_cols = st.columns(len(recommended_items))
+            for idx, col in enumerate(quick_nav_cols):
+                with col:
+                    emoji = "🔵" if idx == st.session_state.carousel_index else "⚪"
+                    if st.button(f"{emoji}", key=f"nav_{idx}", use_container_width=True):
+                        st.session_state.carousel_index = idx
+                        st.rerun()
+        
+        else:
+            st.info("💡 AI 推薦的衣物未在您的衣櫥中找到對應圖片")
+        
+        st.divider()
+        
+        st.markdown("### 🎭 穿搭視覺化")
+        
+        with st.spinner("正在生成穿搭示意圖..."):
+            outfit_image, image_prompt = generate_outfit_image(
+                recommended_items if recommended_items else [], 
+                st.session_state.current_weather, 
+                google_key
+            )
+            
+            if image_prompt:
+                st.info(f"🔍 圖像描述: {image_prompt}")
+                st.warning("""
+                ⚠️ **功能說明**: 
+                - Gemini 2.5 Flash 目前不支持直接圖像生成
+                - 建議使用以下服務生成穿搭人物圖:
+                  1. 複製上方的圖像描述
+                  2. 前往 [DALL-E 3](https://openai.com/dall-e-3) 或 [Midjourney](https://www.midjourney.com/)
+                  3. 貼上描述即可生成專屬穿搭圖
+                """)
+                
+                if st.button("📋 複製圖像描述", use_container_width=True):
+                    st.code(image_prompt, language=None)
+                    st.success("✅ 請手動複製上方文字到圖像生成服務")
+        
+        st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
     
     st.divider()
     st.info("""
@@ -1129,9 +1206,8 @@ if st.session_state.ai_recommendation:
     - 提供個人化穿搭建議
     - ✨ 顯示推薦衣服的實際圖片
     - ✨ 生成穿搭人物圖像描述
-    - 使用 Gemini 2.0 Flash 模型
+    - 使用 Gemini 2.5 Flash 模型
     """)
-
 st.divider()
 with st.expander("📋 Supabase 資料表結構說明"):
     st.code("""
@@ -1162,7 +1238,6 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
-
 
 
 
