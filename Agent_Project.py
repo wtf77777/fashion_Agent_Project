@@ -971,15 +971,6 @@ with tab3:
         if not wardrobe:
             st.warning("衣櫥是空的,請先上傳一些衣服!")
             st.stop()
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("🌡️ 溫度", f"{weather['temp']}°C")
-        with col2:
-            st.metric("🤔 體感", f"{weather['feels_like']}°C")
-        with col3:
-            st.metric("☁️ 天氣", weather['desc'])
-        
         st.divider()
         
         wardrobe_summary = [
@@ -1122,3 +1113,4 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
