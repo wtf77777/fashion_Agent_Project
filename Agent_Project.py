@@ -985,10 +985,10 @@ with tab3:
         st.session_state.recommended_items_cache = None
     
     if st.button("✨ 獲取今日推薦", type="primary", use_container_width=True):
-    # 清除舊的推薦和輪播索引
-    st.session_state.ai_recommendation = None
-    st.session_state.recommended_items_cache = None
-    st.session_state.carousel_index = 0
+        # 清除舊的推薦和輪播索引
+        st.session_state.ai_recommendation = None
+        st.session_state.recommended_items_cache = None
+        st.session_state.carousel_index = 0
     
     if not check_setup(need_weather=True):
         st.stop()
@@ -1162,6 +1162,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
