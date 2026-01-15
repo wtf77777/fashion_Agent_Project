@@ -402,7 +402,7 @@ st.markdown("""
     }
     </style>
     
-    <a href="#ai-cloud" class="scroll-to-top" title="回到頂端">⬆️</a>
+    <a href="#ai-agent-cloud" class="scroll-to-top" title="回到頂端">⬆️</a>
     """, unsafe_allow_html=True)
 
 st.title("👗 AI 個人穿搭 Agent (Cloud)")
@@ -1238,6 +1238,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
