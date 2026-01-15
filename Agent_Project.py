@@ -494,12 +494,6 @@ with st.sidebar:
     if use_secrets:
         st.success("✅ 使用雲端設定")
         st.caption("API Keys 已從安全儲存區載入")
-        
-        if st.checkbox("🔧 手動覆寫設定"):
-            google_key = st.text_input("Gemini API Key", value=google_key, type="password")
-            weather_key = st.text_input("OpenWeather Key", value=weather_key, type="password")
-            supabase_url = st.text_input("Supabase URL", value=supabase_url)
-            supabase_key = st.text_input("Supabase Anon Key", value=supabase_key, type="password")
     else:
         st.info("💡 本地模式: 請輸入 API Keys")
         google_key = st.text_input("Gemini API Key", type="password", help="前往 Google AI Studio 取得")
