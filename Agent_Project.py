@@ -11,7 +11,7 @@ import hashlib
 import time
 import re
 
-# --- 2. 核心功能函數 ---
+# --- 1. 核心功能函數 ---
 
 def rate_limit_protection():
     """API 速率限制保護 - 確保不超過 RPM"""
@@ -356,7 +356,7 @@ The outfit should look coordinated and fashionable."""
 
 
 
-# --- 1. 初始化設定 ---
+# --- 2. 初始化設定 ---
 st.set_page_config(page_title="2026 AI 時尚顧問 (雲端版)", page_icon="☁️")
 
 st.title("👗 AI 個人穿搭 Agent (Cloud)")
@@ -1111,6 +1111,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
