@@ -1172,18 +1172,18 @@ with tab3:
         
         st.divider()
         
-        st.markdown("### 🎭 穿搭視覺化")
+    st.markdown("### 🎭 穿搭視覺化")
         
-        with st.spinner("正在生成穿搭示意圖..."):
-            outfit_image, image_prompt = generate_outfit_image(
+    with st.spinner("正在生成穿搭示意圖..."):
+        outfit_image, image_prompt = generate_outfit_image(
                 recommended_items if recommended_items else [], 
                 st.session_state.current_weather, 
                 google_key
             )
             
-            if image_prompt:
-                st.info(f"🔍 圖像描述: {image_prompt}")
-                st.warning("""
+        if image_prompt:
+            st.info(f"🔍 圖像描述: {image_prompt}")
+            st.warning("""
                 ⚠️ **功能說明**: 
                 - Gemini 2.5 Flash 目前不支持直接圖像生成
                 - 建議使用以下服務生成穿搭人物圖:
@@ -1192,11 +1192,11 @@ with tab3:
                   3. 貼上描述即可生成專屬穿搭圖
                 """)
                 
-                if st.button("📋 複製圖像描述", use_container_width=True):
-                    st.code(image_prompt, language=None)
-                    st.success("✅ 請手動複製上方文字到圖像生成服務")
+            if st.button("📋 複製圖像描述", use_container_width=True):
+                st.code(image_prompt, language=None)
+                st.success("✅ 請手動複製上方文字到圖像生成服務")
         
-        st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
+    st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
     
     st.divider()
     st.info("""
@@ -1238,6 +1238,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
