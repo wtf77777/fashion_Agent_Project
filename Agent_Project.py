@@ -361,16 +361,67 @@ The outfit should look coordinated and fashionable."""
 st.set_page_config(page_title="2026 AI 時尚顧問 (雲端版)", page_icon="☁️")
 st.markdown("""
     <style>
-    /* 隱藏頂部所有圖標 (Share, Star, GitHub 等) */
+    /* 原有的 CSS ... */
     header[data-testid="stHeader"] {
         visibility: hidden;
         display: none;
     }
-    /* 修正頂部空白 */
     .block-container {
         padding-top: 2rem;
     }
+    
+    /* ✨ 新增：回到頂端按鈕 */
+    .scroll-to-top {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 9999;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        font-size: 24px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .scroll-to-top:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+    .scroll-to-top:active {
+        transform: translateY(-2px);
+    }
     </style>
+    
+    <!-- ✨ 新增：JavaScript 滾動功能 -->
+    <script>
+        // 等待頁面載入完成
+        window.addEventListener('load', function() {
+            // 創建按鈕
+            const topBtn = document.createElement('button');
+            topBtn.innerHTML = '⬆️';
+            topBtn.className = 'scroll-to-top';
+            topBtn.title = '回到頂端';
+            
+            // 點擊事件
+            topBtn.onclick = function() {
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            };
+            
+            // 添加到頁面
+            document.body.appendChild(topBtn);
+        });
+    </script>
     """, unsafe_allow_html=True)
 st.title("👗 AI 個人穿搭 Agent (Cloud)")
 
@@ -1113,4 +1164,5 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
