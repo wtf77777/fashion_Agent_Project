@@ -64,6 +64,7 @@ def get_weather(city, api_key):
     except Exception as e:
         st.error(f"天氣獲取失敗: {str(e)}")
         return None
+
 def handle_city_change():
     """當城市選單變動時立刻執行的邏輯"""
     # 透過 key 取得目前選單的值
@@ -530,23 +531,10 @@ with st.sidebar:
         - 建議每批 5-10 張
         """)
     
-    # ✨ 只在登入後顯示城市選單和使用者資訊
+    # ✨ 只在登入後顯示使用者資訊和登出按鈕
     if st.session_state.user_id:
         st.divider()
         st.success(f"👤 目前使用者: **{st.session_state.username}**")
-        
-        st.divider()
-        st.subheader("🌍 城市設定")
-        
-        city_display = st.selectbox(
-            "選擇城市", 
-            options=list(TAIWAN_CITIES.keys()),
-            index=list(TAIWAN_CITIES.keys()).index(default_city_display),
-            help="選擇台灣縣市以獲取天氣資訊",
-            key="city_selector",        # 這是關鍵，必須要有 key
-            on_change=handle_city_change # 當選單改變，立刻執行上面的函數
-        )
-    
         
         st.divider()
         if st.button("🚪 登出", use_container_width=True):
@@ -917,7 +905,24 @@ with tab2:
 
 with tab3:
     st.header("今日穿搭推薦")
-        # 🆕 風格選單
+    
+    # ✨ 城市設定區域 - 移到這裡
+    with st.expander("🌍 城市設定", expanded=True):
+        city_display = st.selectbox(
+            "選擇城市", 
+            options=list(TAIWAN_CITIES.keys()),
+            index=list(TAIWAN_CITIES.keys()).index(default_city_display),
+            help="選擇台灣縣市以獲取天氣資訊",
+            key="city_selector",
+            on_change=handle_city_change
+        )
+        
+        # 顯示當前選擇的城市
+        st.caption(f"📍 當前城市: **{st.session_state.selected_city}**")
+    
+    st.divider()
+    
+    # 🆕 風格選單
     style_options = {
         "🇫🇷 法式優雅": "法式優雅風格，強調輕鬆隨性但精緻的搭配，色調以黑白灰為主，搭配經典單品如條紋衫、西裝外套、牛仔褲",
         "🇺🇸 美式休閒": "美式休閒風格，強調舒適實用，常見單品包括 T-shirt、牛仔褲、運動鞋、棒球帽",
@@ -1123,10 +1128,3 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
-
-
-
-
-
-
-
