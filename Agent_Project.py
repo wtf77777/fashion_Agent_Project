@@ -81,7 +81,7 @@ def auto_tagging(img_bytes, api_key):
         rate_limit_protection()
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-3-flash')
         
         prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
         {
@@ -119,70 +119,49 @@ def auto_tagging(img_bytes, api_key):
         return None
 
 def batch_auto_tagging(img_bytes_list, api_key):
-    """批量 AI 自動標籤 - 一次分析多張衣服"""
+    """
+    一次將 10 張圖片打包發送，僅消耗 1 個 RPD。
+    """
     try:
-        rate_limit_protection()
-        
+        # 1. 配置與模型初始化 (建議使用 Flash 模型處理多圖，速度快且省 Token)
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        
-        content_parts = [f"""請仔細分析這 {len(img_bytes_list)} 件衣服，為每件衣服分別回傳 JSON 格式的標籤。
+        model = genai.GenerativeModel(
+            model_name='gemini-3-flash',
+            generation_config={"response_mime_type": "application/json"}
+        )
 
-回傳格式必須是一個 JSON 陣列，包含 {len(img_bytes_list)} 個物件:
-[
-  {{
-    "name": "衣服名稱(如:白色T恤、牛仔褲)",
-    "category": "上衣|下身|外套|鞋子|配件",
-    "color": "主要顏色",
-    "style": "風格(如:休閒、正式、運動)",
-    "warmth": 保暖度1-10的數字
-  }},
-  ... (依序對應每張圖片)
-]
-
-重要規則:
-1. 只回傳 JSON 陣列，不要任何其他文字
-2. 不要包含 ```json 或任何 Markdown 標籤
-3. 陣列中的順序必須與圖片順序一致
-4. 每個物件都必須包含所有 5 個欄位
-"""]
+        # 2. 構建請求內容 (文字指令 + 所有圖片)
+        # 注意：順序很重要，AI 會按照零件順序處理
+        prompt = f"""
+        你是一個專業的時尚分析師。我上傳了 {len(img_bytes_list)} 張衣服圖片。
+        請嚴格按照圖片順序，分析每張圖的特徵，並回傳一個 JSON 陣列。
+        陣列中的每個物件格式如下：
+        {{
+          "name": "衣服名稱",
+          "category": "上衣|下身|外套|鞋子|配件",
+          "color": "主要顏色",
+          "style": "風格風格",
+          "warmth": 1-10
+        }}
+        """
         
+        # 將 Prompt 和所有圖片打包進一個列表
+        content_payload = [prompt]
         for img_bytes in img_bytes_list:
-            content_parts.append({
+            content_payload.append({
                 "mime_type": "image/jpeg",
                 "data": img_bytes
             })
+
+        # 3. 發送單個請求 (包含 10 張圖)
+        rate_limit_protection() # 確保不超過 RPM (每分鐘請求數)
+        response = model.generate_content(content_payload)
         
-        response = model.generate_content(content_parts)
-        
-        clean_text = response.text.strip()
-        clean_text = clean_text.replace('```json', '').replace('```', '').strip()
-        
-        tags_list = json.loads(clean_text)
-        
-        if not isinstance(tags_list, list):
-            raise ValueError("AI 回傳格式錯誤: 應為陣列")
-        
-        if len(tags_list) != len(img_bytes_list):
-            raise ValueError(f"AI 回傳數量不符: 預期 {len(img_bytes_list)} 件，實際 {len(tags_list)} 件")
-        
-        required_fields = ['name', 'category', 'color', 'warmth']
-        for idx, tags in enumerate(tags_list):
-            for field in required_fields:
-                if field not in tags:
-                    raise ValueError(f"第 {idx+1} 件衣服缺少必要欄位: {field}")
-            
-            tags['warmth'] = int(tags['warmth'])
-        
-        return tags_list
-        
-    except json.JSONDecodeError as e:
-        st.error(f"AI 回應格式錯誤，無法解析 JSON: {str(e)}")
-        if 'response' in locals():
-            st.code(response.text)
-        return None
+        # 4. 解析結果
+        return json.loads(response.text)
+
     except Exception as e:
-        st.error(f"批量 AI 標籤失敗: {str(e)}")
+        st.error(f"批量辨識失敗: {str(e)}")
         return None
 
 def save_to_supabase(tags, img_bytes, img_hash):
@@ -321,7 +300,7 @@ def generate_outfit_image(recommended_items, weather_info, api_key):
         genai.configure(api_key=api_key)
         
         # 1. 使用支援圖像生成的模型名稱
-        model = genai.GenerativeModel('gemini-3-pro-image-preview')
+        model = genai.GenerativeModel('gemini-2.5-flash')
 
         # 2. 構建英文 Prompt
         item_desc = ", ".join([f"{i.get('color','')} {i.get('name','')}" for i in recommended_items])
@@ -1025,7 +1004,7 @@ with tab3:
                 rate_limit_protection()
                 
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-3-pro-preview')
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 
                 prompt = f"""
                 你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
@@ -1241,6 +1220,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
