@@ -980,10 +980,7 @@ with tab3:
         selected_occasion = occasion_input if occasion_input.strip() else "外出遊玩"
 
     st.caption(f"🎯 當前目標：在 **{selected_occasion}** 時，穿出 **{selected_style}**")
-    
-    with st.expander("ℹ️ 風格說明", expanded=False):
-        st.info(style_description)
-    
+
     # ✅ 獲取推薦按鈕
     if st.button("✨ 獲取今日推薦", type="primary", use_container_width=True):
         # 清除舊的推薦
@@ -1233,6 +1230,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
