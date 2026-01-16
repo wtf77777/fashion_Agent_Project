@@ -310,109 +310,7 @@ The outfit should look coordinated and fashionable."""
     except Exception as e:
         st.error(f"圖像生成失敗: {str(e)}")
         return None, None
-def add_scroll_to_top_button():
-    """在 Streamlit 應用中加入回到頂端按鈕"""
-    import streamlit.components.v1 as components
-    
-    components.html(
-        """
-        <div id="scroll-top-container">
-            <button id="scrollTopBtn" class="scroll-to-top" title="回到頂端">⬆️</button>
-        </div>
-        
-        <style>
-            #scroll-top-container {
-                position: fixed;
-                bottom: 20px;
-                left: 20px;
-                z-index: 999999;
-            }
-            
-            .scroll-to-top {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                border: none;
-                border-radius: 50%;
-                width: 56px;
-                height: 56px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-                font-size: 24px;
-                cursor: pointer;
-                opacity: 0;
-                transform: scale(0.8);
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                touch-action: manipulation;
-                -webkit-tap-highlight-color: transparent;
-                user-select: none;
-            }
-            
-            .scroll-to-top.show {
-                opacity: 1;
-                transform: scale(1);
-            }
-            
-            .scroll-to-top:active {
-                transform: scale(0.9);
-            }
-            
-            @media (max-width: 768px) {
-                #scroll-top-container {
-                    bottom: calc(15px + env(safe-area-inset-bottom, 0px));
-                    left: 15px;
-                }
-                .scroll-to-top {
-                    width: 52px;
-                    height: 52px;
-                    font-size: 22px;
-                }
-            }
-        </style>
-        
-        <script>
-            (function() {
-                if (window.scrollTopInitialized) return;
-                window.scrollTopInitialized = true;
-                
-                const btn = document.getElementById("scrollTopBtn");
-                if (!btn) return;
-                
-                let scrollTimer;
-                window.addEventListener("scroll", function() {
-                    clearTimeout(scrollTimer);
-                    scrollTimer = setTimeout(function() {
-                        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                        if (scrollTop > 300) {
-                            btn.classList.add("show");
-                        } else {
-                            btn.classList.remove("show");
-                        }
-                    }, 50);
-                }, { passive: true });
-                
-                function scrollToTop(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    window.scrollTo({
-                        top: 0,
-                        behavior: "smooth"
-                    });
-                }
-                
-                btn.addEventListener("click", scrollToTop, false);
-                btn.addEventListener("touchend", function(e) {
-                    e.preventDefault();
-                    scrollToTop(e);
-                }, { passive: false });
-            })();
-        </script>
-        """,
-        height=0,
-        scrolling=False
-    )
+
 
 
 
@@ -430,8 +328,39 @@ st.markdown("""
         padding-top: 2rem;
     }
     
-    add_scroll_to_top_button()
+    /* ✨ 新增：回到頂端按鈕 */
+    .scroll-to-top {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 9999;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        font-size: 24px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+    }
+    .scroll-to-top:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+    .scroll-to-top:active {
+        transform: translateY(-2px);
+    }
     </style>
+    
+    <a href="#ai-agent-cloud" class="scroll-to-top" title="回到頂端">⬆️</a>
+    """, unsafe_allow_html=True)
 
 st.title(" 個人穿搭 ")
 
@@ -1186,12 +1115,6 @@ with tab3:
     - 使用 Gemini 2.5 Flash 模型
     """)
 st.divider()
-
-
-
-
-
-
 
 
 
