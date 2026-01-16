@@ -405,7 +405,7 @@ st.markdown("""
     <a href="#ai-agent-cloud" class="scroll-to-top" title="回到頂端">⬆️</a>
     """, unsafe_allow_html=True)
 
-st.title("👗 AI 個人穿搭 Agent (Cloud)")
+st.title(" 個人穿搭 ")
 
 # 初始化 session state
 if 'supabase_client' not in st.session_state:
@@ -507,11 +507,11 @@ if st.session_state.user_id and weather_key:
             weather = st.session_state.weather_data
             col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
             with col1:
-                st.markdown(f"### 📡 {current_city} 即時天氣")
+                st.markdown(f"### {current_city} 即時天氣")
             with col2:
-                st.metric("🌡️ 溫度", f"{weather['temp']}°C")
+                st.metric(" 溫度", f"{weather['temp']}°C")
             with col3:
-                st.metric("🤔 體感", f"{weather['feels_like']}°C")
+                st.metric(" 體感", f"{weather['feels_like']}°C")
             with col4:
                 st.metric("☁️", weather['desc'])
             
@@ -709,28 +709,28 @@ with tab1:
         )
         
         if uploaded_files:
-            if len(uploaded_files) > 20:
-                st.error(f"❌ 一次最多只能上傳 20 張照片，您選擇了 {len(uploaded_files)} 張")
-                st.info("💡 請重新選擇不超過 20 張照片")
+            if len(uploaded_files) < 10:
+                st.error(f" 一次最多只能上傳 10 張照片，您選擇了 {len(uploaded_files)} 張")
+                st.info(" 請重新選擇不超過 10 張照片")
                 st.stop()
             
             st.success(f"✅ 已選擇 {len(uploaded_files)} 張照片")
             
-            with st.expander("📷 預覽所有照片", expanded=True):
+            with st.expander(" 預覽所有照片", expanded=True):
                 cols = st.columns(4)
                 for idx, file in enumerate(uploaded_files):
                     with cols[idx % 4]:
                         img = Image.open(file)
                         st.image(img, caption=file.name, use_container_width=True)
             
-            if st.button("🚀 批量辨識並上傳全部", type="primary", use_container_width=True):
+            if st.button(" 批量辨識並上傳全部", type="primary", use_container_width=True):
                 if not check_setup():
                     st.stop()
                 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                status_text.text("📦 正在準備圖片資料...")
+                status_text.text(" 正在準備圖片資料...")
                 img_data_list = []
                 img_hash_list = []
                 file_names = []
@@ -758,8 +758,8 @@ with tab1:
                     st.stop()
                 
                 progress_bar.progress(0.3)
-                status_text.text(f"🤖 AI 正在批量分析 {len(img_data_list)} 件衣服...")
-                st.info(f"⚡ 批量模式：{len(img_data_list)} 張圖片只需 1 次 API 呼叫（約 20-40 秒）")
+                status_text.text(f" AI 正在批量分析 {len(img_data_list)} 件衣服...")
+                st.info(f" 批量模式：{len(img_data_list)} 張圖片只需 1 次 API 呼叫（約 20-40 秒）")
                 
                 tags_list = batch_auto_tagging(img_data_list, google_key)
                 
@@ -810,15 +810,15 @@ with tab1:
                 
                 if success_count > 0:
                     st.balloons()
-                    st.success(f"🎉 批量上傳完成！成功 {success_count} 件")
-                    st.info("💡 批量模式大幅減少 API 呼叫次數，避免 RPM 限制！")
+                    st.success(f" 批量上傳完成！成功 {success_count} 件")
+                    
     
     st.divider()
     st.info("""
     **📌 使用提示:**
     1. 拍攝清晰的單件衣服照片
     2. 背景簡潔有助於 AI 辨識
-    3. **✨ 批量上傳模式: 5-10 張最佳** (只需 1 次 API 呼叫)
+    3. ** 批量上傳模式: 5-10 張最佳** (只需 1 次 API 呼叫)
     4. 系統會自動過濾重複的衣服
     5. 批量模式速度提升 10 倍，避免 RPM 限制
     """)
@@ -914,7 +914,7 @@ with tab2:
                             img = Image.open(io.BytesIO(img_bytes))
                             st.image(img, use_container_width=True)
                         except:
-                            st.write("🖼️ 圖片載入失敗")
+                            st.write(" 圖片載入失敗")
                     
                     st.subheader(item.get('name', '未命名'))
                     st.write(f"**類別:** {item.get('category', 'N/A')}")
@@ -928,7 +928,7 @@ with tab2:
                                 st.success("已刪除")
                                 st.rerun()
     else:
-        st.info("目前衣櫥是空的,去上傳一些衣服吧! 👕")
+        st.info("目前衣櫥是空的,去上傳一些衣服吧! ")
 
 with tab3:
     st.header("今日穿搭推薦")
@@ -944,7 +944,7 @@ with tab3:
         st.session_state.current_style = None
     
     # ✨ 城市設定區域
-    with st.expander("🌍 城市設定", expanded=True):
+    with st.expander(" 城市設定", expanded=True):
         city_display = st.selectbox(
             "選擇城市", 
             options=list(TAIWAN_CITIES.keys()),
@@ -963,7 +963,7 @@ with tab3:
     
     with col_s:
         style_input = st.text_input(
-            "🎨 想要什麼風格？", 
+            " 想要什麼風格？", 
             placeholder="例如：日系簡約、美式復古...",
             help="留空則由 AI 自由發揮（不限定風格）"
         )
@@ -972,14 +972,14 @@ with tab3:
 
     with col_o:
         occasion_input = st.text_input(
-            "🏢 要去什麼場合/活動？", 
+            " 要去什麼場合/活動？", 
             placeholder="例如：公司開會、約會看電影、健身房...",
             help="預設為：外出遊玩"
         )
         # 邏輯判斷：若沒輸入則預設外出遊玩
         selected_occasion = occasion_input if occasion_input.strip() else "外出遊玩"
 
-    st.caption(f"🎯 當前目標：在 **{selected_occasion}** 時，穿出 **{selected_style}**")
+    st.caption(f" 當前目標：在 **{selected_occasion}** 時，穿出 **{selected_style}**")
 
     # ✅ 獲取推薦按鈕
     if st.button("✨ 獲取今日推薦", type="primary", use_container_width=True):
@@ -1136,12 +1136,12 @@ with tab3:
                             img = Image.open(io.BytesIO(img_bytes))
                             st.image(img, use_container_width=True)
                         except:
-                            st.error("🖼️ 圖片載入失敗")
+                            st.error(" 圖片載入失敗")
                     else:
-                        st.info("📷 無圖片資料")
+                        st.info(" 無圖片資料")
                 
                 with col_info:
-                    st.markdown("### 📋 單品資訊")
+                    st.markdown("###  單品資訊")
                     st.markdown(f"**名稱**: {current_item.get('name', '未命名')}")
                     st.markdown(f"**類別**: {current_item.get('category', 'N/A')}")
                     st.markdown(f"**顏色**: {current_item.get('color', 'N/A')}")
@@ -1160,11 +1160,11 @@ with tab3:
                         st.rerun()
         
         else:
-            st.info("💡 AI 推薦的衣物未在您的衣櫥中找到對應圖片")
+            st.info(" AI 推薦的衣物未在您的衣櫥中找到對應圖片")
         
         st.divider()
         
-        st.markdown("### 🎭 穿搭視覺化")
+        st.markdown("###  穿搭視覺化")
         
         with st.spinner("正在生成穿搭示意圖..."):
             outfit_image, image_prompt = generate_outfit_image(
@@ -1174,7 +1174,7 @@ with tab3:
             )
             
             if image_prompt:
-                st.info(f"🔍 圖像描述: {image_prompt}")
+                st.info(f" 圖像描述: {image_prompt}")
                 st.warning("""
                 ⚠️ **功能說明**: 
                 - Gemini 2.5 Flash 目前不支持直接圖像生成
@@ -1201,35 +1201,8 @@ with tab3:
     - 使用 Gemini 2.5 Flash 模型
     """)
 st.divider()
-with st.expander("📋 Supabase 資料表結構說明"):
-    st.code("""
--- 使用者資料表
-CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
 
--- 衣櫥資料表
-CREATE TABLE my_wardrobe (
-    id BIGSERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    category TEXT NOT NULL,
-    color TEXT NOT NULL,
-    style TEXT,
-    warmth INTEGER CHECK (warmth >= 1 AND warmth <= 10),
-    image_data TEXT,
-    image_hash TEXT NOT NULL,
-    user_id BIGINT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
 
--- 建立 hash 索引以加速重複檢查
-CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
-    """, language="sql")
-
-st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
 
 
 
