@@ -623,7 +623,7 @@ with tab1:
         )
         
         if uploaded_files:
-            if len(uploaded_files) < 10:
+            if len(uploaded_files) > 10:
                 st.error(f" 一次最多只能上傳 10 張照片，您選擇了 {len(uploaded_files)} 張")
                 st.info(" 請重新選擇不超過 10 張照片")
                 st.stop()
@@ -1115,6 +1115,7 @@ with tab3:
     - 使用 Gemini 2.5 Flash 模型
     """)
 st.divider()
+
 
 
 
