@@ -1177,27 +1177,27 @@ with tab3:
             )
             
                 # 準備傳入參數
-                weather['selected_style'] = selected_style
-                weather['city'] = current_city
+            weather['selected_style'] = selected_style
+            weather['city'] = current_city
 
                 # 呼叫剛修改好的生成函數
-                outfit_image, image_prompt = generate_outfit_image(recommended_items, weather, google_key)
+            outfit_image, image_prompt = generate_outfit_image(recommended_items, weather, google_key)
                 
-                if outfit_image:
+            if outfit_image:
                     # ✅ 如果有圖片，直接顯示
-                    st.image(outfit_image, caption="Gemini 2.5 生成的穿搭參考", use_container_width=True)
+                st.image(outfit_image, caption="Gemini 2.5 生成的穿搭參考", use_container_width=True)
                     
                     # 製作下載按鈕
-                    buf = io.BytesIO()
-                    outfit_image.save(buf, format="PNG")
-                    st.download_button("📥 下載穿搭圖", buf.getvalue(), "outfit.png", "image/png")
-                else:
+                buf = io.BytesIO()
+                outfit_image.save(buf, format="PNG")
+                st.download_button("📥 下載穿搭圖", buf.getvalue(), "outfit.png", "image/png")
+            else:
                     # ❌ 如果沒有圖片，顯示原本的文字描述與說明
-                    if image_prompt:
-                        st.info(f"📝 圖像描述已生成：\n{image_prompt}")
-                        st.warning("提示：目前模型未回傳圖片，您可以複製上方描述至 DALL-E 3 生成。")
-                        if st.button("📋 複製圖像描述", key="copy_btn"):
-                            st.code(image_prompt)
+                if image_prompt:
+                    st.info(f"📝 圖像描述已生成：\n{image_prompt}")
+                    st.warning("提示：目前模型未回傳圖片，您可以複製上方描述至 DALL-E 3 生成。")
+                    if st.button("📋 複製圖像描述", key="copy_btn"):
+                        st.code(image_prompt)
         
         st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
     
@@ -1241,6 +1241,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
