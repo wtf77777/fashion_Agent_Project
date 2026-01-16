@@ -364,7 +364,6 @@ def generate_outfit_image(recommended_items, weather_info, api_key):
         return None, None
 
 
-
 # --- 2. 初始化設定 ---
 st.set_page_config(page_title="2026 AI 時尚顧問 (雲端版)", page_icon="☁️")
 st.markdown("""
@@ -1180,39 +1179,49 @@ with tab3:
         
         st.divider()
         
-        st.markdown("### 🎭 穿搭視覺化")
+# --- 穿搭視覺化區塊 ---
+                st.markdown("### 🎭 穿搭視覺化")
+                
+                # 準備傳入參數
+                weather['selected_style'] = selected_style
+                weather['city'] = current_city
 
-        # 呼叫我們剛剛修改的函數
-        outfit_img, final_prompt = generate_outfit_image(recommended_items, weather, google_key)
-        
-        if outfit_img:
-            st.image(outfit_img, caption="Gemini 2.5 為您生成的穿搭參考圖", use_container_width=True)
-            
-            # 增加下載按鈕方便使用者保存
-            buf = io.BytesIO()
-            outfit_img.save(buf, format="PNG")
-            st.download_button(
-                label="📥 下載生成的穿搭圖",
-                data=buf.getvalue(),
-                file_name="gemini_outfit.png",
-                mime="image/png"
-            )
-        else:
-            st.warning("目前模型未能直接生成圖像，以下是生成的 Prompt 供參考：")
-            st.code(final_prompt)
-            
-        st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
-            
-            st.divider()
-            st.info("""
-            **💡 推薦功能說明:**
-            - 結合即時天氣與您的衣櫥
-            - 考慮 2026 流行趨勢
-            - 提供個人化穿搭建議
-            - ✨ 顯示推薦衣服的實際圖片
-            - ✨ 生成穿搭人物圖像描述
-            - 使用 Gemini 2.5 Flash 模型
-            """)
+                # 呼叫修改後的生成函數
+                outfit_image, image_prompt = generate_outfit_image(recommended_items, weather, google_key)
+                
+                if outfit_image:
+                    # ✅ 如果有圖片，直接顯示
+                    st.image(outfit_image, caption=f"Gemini 2.5 根據「{selected_style}」風格生成的示意圖", use_container_width=True)
+                    
+                    # 製作下載按鈕
+                    buf = io.BytesIO()
+                    outfit_image.save(buf, format="PNG")
+                    st.download_button(
+                        label="📥 下載此穿搭建議圖",
+                        data=buf.getvalue(),
+                        file_name=f"gemini_outfit_{datetime.now().strftime('%m%d')}.png",
+                        mime="image/png"
+                    )
+                else:
+                    # ❌ 如果沒有圖片，顯示原本的文字描述備案
+                    if image_prompt:
+                        st.info(f"📝 圖像描述已生成：\n{image_prompt}")
+                        st.warning("提示：目前模型未直接回傳圖片（可能受限於 API 區域權限），您可以複製描述至 DALL-E 3。")
+                        if st.button("📋 點此顯示代碼以便複製", key="copy_btn"):
+                            st.code(image_prompt)
+
+                st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
+    
+    st.divider()
+    st.info("""
+    **💡 推薦功能說明:**
+    - 結合即時天氣與您的衣櫥
+    - 考慮 2026 流行趨勢
+    - 提供個人化穿搭建議
+    - ✨ 顯示推薦衣服的實際圖片
+    - ✨ 生成穿搭人物圖像描述
+    - 使用 Gemini 2.5 Flash 模型
+    """)
 st.divider()
 with st.expander("📋 Supabase 資料表結構說明"):
     st.code("""
@@ -1243,13 +1252,6 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
-
-
-
-
-
-
-
 
 
 
