@@ -74,49 +74,6 @@ def handle_city_change():
     # 立刻更新狀態，這樣頂部重新執行時就會拿到新城市
     st.session_state.selected_city = new_city_eng
     st.session_state.weather_data = None  # 強制清除舊天氣以重新抓取
-    
-def auto_tagging(img_bytes, api_key):
-    """AI 自動標籤衣服 - 單張模式"""
-    try:
-        rate_limit_protection()
-        
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        
-        prompt = """請仔細分析這件衣服,回傳純 JSON 格式(不要包含 ```json 或任何 Markdown 標籤):
-        {
-            "name": "衣服名稱(如:白色T恤、牛仔褲)",
-            "category": "上衣|下身|外套|鞋子|配件",
-            "color": "主要顏色",
-            "style": "風格(如:休閒、正式、運動)",
-            "warmth": 保暖度1-10的數字
-        }
-        只回傳 JSON,不要其他文字。"""
-        
-        response = model.generate_content([prompt, {"mime_type": "image/jpeg", "data": img_bytes}])
-        
-        clean_text = response.text.strip()
-        clean_text = clean_text.replace('```json', '').replace('```', '').strip()
-        
-        tags = json.loads(clean_text)
-        
-        required_fields = ['name', 'category', 'color', 'warmth']
-        for field in required_fields:
-            if field not in tags:
-                raise ValueError(f"缺少必要欄位: {field}")
-        
-        tags['warmth'] = int(tags['warmth'])
-        
-        return tags
-        
-    except json.JSONDecodeError as e:
-        st.error(f"AI 回應格式錯誤,無法解析 JSON: {str(e)}")
-        if 'response' in locals():
-            st.code(response.text)
-        return None
-    except Exception as e:
-        st.error(f"AI 標籤失敗: {str(e)}")
-        return None
 
 def batch_auto_tagging(img_bytes_list, api_key):
     """批量 AI 自動標籤 - 一次分析多張衣服"""
@@ -655,53 +612,10 @@ tab1, tab2, tab3 = st.tabs(["📸 上傳入庫", "👔 我的衣櫥", "💡 今�
 with tab1:
     st.header("上傳新衣到雲端")
     
-    upload_mode = st.radio("上傳模式", ["單張上傳", "批量上傳 (推薦)"], horizontal=True)
+    upload_mode = st.radio("上傳模式", [ "批量上傳"], horizontal=True)
     
-    if upload_mode == "單張上傳":
-        uploaded_file = st.file_uploader("選取衣服照片...", type=["jpg", "png", "jpeg"])
-        
-        if uploaded_file:
-            img = Image.open(uploaded_file)
-            
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.image(img, caption="預覽", use_container_width=True)
-            
-            with col2:
-                if st.button("🤖 AI 辨識並存入資料庫", type="primary", use_container_width=True):
-                    if not check_setup():
-                        st.stop()
-                    
-                    with st.spinner("正在檢查重複..."):
-                        img_byte_arr = io.BytesIO()
-                        img.save(img_byte_arr, format='JPEG')
-                        img_bytes = img_byte_arr.getvalue()
-                        img_hash = get_image_hash(img_bytes)
-                        
-                        is_duplicate, existing_name = check_duplicate_image(img_hash)
-                        
-                        if is_duplicate:
-                            st.warning(f"⚠️ 這件衣服已存在: **{existing_name}**")
-                            st.info("💡 請上傳不同的衣服照片")
-                            st.stop()
-                    
-                    with st.spinner("AI 正在分析衣服..."):
-                        tags = auto_tagging(img_bytes, google_key)
-                        
-                        if tags:
-                            st.success("✅ AI 辨識完成!")
-                            st.json(tags)
-                            
-                            with st.spinner("正在存入雲端..."):
-                                success, result = save_to_supabase(tags, img_bytes, img_hash)
-                                
-                                if success:
-                                    st.success(f"🎉 已存入雲端: **{tags['name']}**")
-                                    st.balloons()
-                                else:
-                                    st.error(f"存入失敗: {result}")
     
-    else:
+    if upload_mode == "批量上傳":
         uploaded_files = st.file_uploader(
             "選取多張衣服照片（建議 5-10 張最佳）...", 
             type=["jpg", "png", "jpeg"],
@@ -1201,6 +1115,7 @@ with tab3:
     - 使用 Gemini 2.5 Flash 模型
     """)
 st.divider()
+
 
 
 
