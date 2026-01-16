@@ -1181,54 +1181,6 @@ with tab3:
         st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
     
     st.divider()
-    st.info("""
-    **💡 推薦功能說明:**
-    - 結合即時天氣與您的衣櫥
-    - 考慮 2026 流行趨勢
-    - 提供個人化穿搭建議
-    - ✨ 顯示推薦衣服的實際圖片
-    - ✨ 生成穿搭人物圖像描述
-    - 使用 Gemini 2.5 Flash 模型
-    """)
-st.divider()
-with st.expander("📋 Supabase 資料表結構說明"):
-    st.code("""
--- 使用者資料表
-CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 衣櫥資料表
-CREATE TABLE my_wardrobe (
-    id BIGSERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    category TEXT NOT NULL,
-    color TEXT NOT NULL,
-    style TEXT,
-    warmth INTEGER CHECK (warmth >= 1 AND warmth <= 10),
-    image_data TEXT,
-    image_hash TEXT NOT NULL,
-    user_id BIGINT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 建立 hash 索引以加速重複檢查
-CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
-    """, language="sql")
-
-st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
-
-
-
-
-
-
-
-
-
 
 
 
