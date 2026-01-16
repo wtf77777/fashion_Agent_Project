@@ -185,14 +185,118 @@ def batch_auto_tagging(img_bytes_list, api_key):
         st.error(f"批量 AI 標籤失敗: {str(e)}")
         return None
 
-def save_to_supabase(tags, img_bytes, img_hash):
-    """儲存衣服資料到 Supabase"""
+def compress_image(img_bytes, max_size_kb=500, quality=85):
+    """
+    壓縮圖片以減少儲存空間
+    max_size_kb: 目標大小（KB）
+    quality: 壓縮品質 1-95
+    """
     try:
-        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        img = Image.open(io.BytesIO(img_bytes))
         
+        # 轉換 RGBA 為 RGB（處理 PNG 透明背景）
+        if img.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            img = background
+        
+        # 調整尺寸（保持比例，最大邊 800px）
+        max_dimension = 800
+        if max(img.size) > max_dimension:
+            ratio = max_dimension / max(img.size)
+            new_size = tuple(int(dim * ratio) for dim in img.size)
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+        
+        # 逐步壓縮直到符合大小
+        output = io.BytesIO()
+        current_quality = quality
+        
+        while current_quality > 20:
+            output.seek(0)
+            output.truncate()
+            img.save(output, format='JPEG', quality=current_quality, optimize=True)
+            
+            size_kb = len(output.getvalue()) / 1024
+            if size_kb <= max_size_kb or current_quality <= 30:
+                break
+            
+            current_quality -= 5
+        
+        compressed_bytes = output.getvalue()
+        compression_ratio = (1 - len(compressed_bytes) / len(img_bytes)) * 100
+        
+        st.info(f"📦 圖片壓縮: {len(img_bytes)/1024:.1f}KB → {len(compressed_bytes)/1024:.1f}KB (節省 {compression_ratio:.1f}%)")
+        
+        return compressed_bytes
+        
+    except Exception as e:
+        st.warning(f"圖片壓縮失敗，使用原圖: {str(e)}")
+        return img_bytes
+
+def upload_to_supabase_storage(img_bytes, img_hash, user_id):
+    """
+    上傳圖片到 Supabase Storage
+    返回: (success, image_url)
+    """
+    try:
+        # 壓縮圖片
+        compressed_bytes = compress_image(img_bytes)
+        
+        # 生成唯一檔名
+        file_name = f"{user_id}/{img_hash}.jpg"
+        
+        # 上傳到 Supabase Storage
+        result = st.session_state.supabase_client.storage.from_('wardrobe-images').upload(
+            file_name,
+            compressed_bytes,
+            file_options={"content-type": "image/jpeg"}
+        )
+        
+        # 獲取公開 URL
+        public_url = st.session_state.supabase_client.storage.from_('wardrobe-images').get_public_url(file_name)
+        
+        return True, public_url
+        
+    except Exception as e:
+        # 如果檔案已存在，直接獲取 URL
+        if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+            file_name = f"{user_id}/{img_hash}.jpg"
+            public_url = st.session_state.supabase_client.storage.from_('wardrobe-images').get_public_url(file_name)
+            return True, public_url
+        
+        st.error(f"上傳圖片失敗: {str(e)}")
+        return False, None
+
+def delete_from_supabase_storage(image_url, user_id):
+    """
+    從 Supabase Storage 刪除圖片
+    """
+    try:
+        # 從 URL 提取檔名
+        file_name = image_url.split('/')[-1]
+        full_path = f"{user_id}/{file_name}"
+        
+        st.session_state.supabase_client.storage.from_('wardrobe-images').remove([full_path])
+        return True
+    except Exception as e:
+        st.warning(f"刪除圖片失敗: {str(e)}")
+        return False
+
+def save_to_supabase(tags, img_bytes, img_hash):
+    """儲存衣服資料到 Supabase（使用 Storage 儲存圖片）"""
+    try:
+        # 上傳圖片到 Storage
+        success, image_url = upload_to_supabase_storage(img_bytes, img_hash, st.session_state.user_id)
+        
+        if not success:
+            return False, "圖片上傳失敗"
+        
+        # 只儲存 URL 到資料庫
         data = {
             **tags,
-            "image_data": img_base64,
+            "image_url": image_url,  # ✅ 改為儲存 URL
             "image_hash": img_hash,
             "user_id": st.session_state.user_id,
             "created_at": datetime.now().isoformat()
@@ -218,31 +322,58 @@ def get_wardrobe():
         return []
 
 def delete_item(item_id):
-    """刪除衣服"""
+    """刪除衣服（同時刪除 Storage 中的圖片）"""
     try:
+        # 先取得圖片 URL
+        item = st.session_state.supabase_client.table("my_wardrobe")\
+            .select("image_url")\
+            .eq("id", item_id)\
+            .eq("user_id", st.session_state.user_id)\
+            .single()\
+            .execute()
+        
+        # 刪除資料庫記錄
         st.session_state.supabase_client.table("my_wardrobe")\
             .delete()\
             .eq("id", item_id)\
             .eq("user_id", st.session_state.user_id)\
             .execute()
+        
+        # 刪除 Storage 中的圖片
+        if item.data and 'image_url' in item.data:
+            delete_from_supabase_storage(item.data['image_url'], st.session_state.user_id)
+        
         return True
     except Exception as e:
         st.error(f"刪除失敗: {str(e)}")
         return False
-
 def batch_delete_items(item_ids):
-    """批量刪除衣服"""
+    """批量刪除衣服（同時刪除 Storage 中的圖片）"""
     try:
         success_count = 0
         fail_count = 0
         
         for item_id in item_ids:
             try:
+                # 先取得圖片 URL
+                item = st.session_state.supabase_client.table("my_wardrobe")\
+                    .select("image_url")\
+                    .eq("id", item_id)\
+                    .eq("user_id", st.session_state.user_id)\
+                    .single()\
+                    .execute()
+                
+                # 刪除資料庫記錄
                 st.session_state.supabase_client.table("my_wardrobe")\
                     .delete()\
                     .eq("id", item_id)\
                     .eq("user_id", st.session_state.user_id)\
                     .execute()
+                
+                # 刪除 Storage 中的圖片
+                if item.data and 'image_url' in item.data:
+                    delete_from_supabase_storage(item.data['image_url'], st.session_state.user_id)
+                
                 success_count += 1
             except:
                 fail_count += 1
@@ -908,14 +1039,19 @@ with tab2:
                             if item['id'] in st.session_state.selected_items:
                                 st.session_state.selected_items.remove(item['id'])
                     
-                    if 'image_data' in item and item['image_data']:
+                    if 'image_url' in item and item['image_url']:
+                        st.image(item['image_url'], use_container_width=True)
+                    elif 'image_data' in item and item['image_data']:
+                        # 向後兼容：支援舊的 Base64 格式
                         try:
                             img_bytes = base64.b64decode(item['image_data'])
                             img = Image.open(io.BytesIO(img_bytes))
                             st.image(img, use_container_width=True)
                         except:
                             st.write("🖼️ 圖片載入失敗")
-                    
+                    else:
+                        st.write("🖼️ 無圖片")
+                        
                     st.subheader(item.get('name', '未命名'))
                     st.write(f"**類別:** {item.get('category', 'N/A')}")
                     st.write(f"**顏色:** {item.get('color', 'N/A')}")
@@ -1138,7 +1274,10 @@ with tab3:
                 col_img, col_info = st.columns([3, 2])
                 
                 with col_img:
-                    if 'image_data' in current_item and current_item['image_data']:
+                    if 'image_url' in current_item and current_item['image_url']:
+                        st.image(current_item['image_url'], use_container_width=True)
+                    elif 'image_data' in current_item and current_item['image_data']:
+                        # 向後兼容
                         try:
                             img_bytes = base64.b64decode(current_item['image_data'])
                             img = Image.open(io.BytesIO(img_bytes))
@@ -1238,6 +1377,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
