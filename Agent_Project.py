@@ -958,30 +958,28 @@ with tab3:
     
     st.divider()
     
-    # 🆕 風格選單
-    style_options = {
-        "🇫🇷 法式優雅": "法式優雅風格，強調輕鬆隨性但精緻的搭配，色調以黑白灰為主，搭配經典單品如條紋衫、西裝外套、牛仔褲",
-        "🇺🇸 美式休閒": "美式休閒風格，強調舒適實用，常見單品包括 T-shirt、牛仔褲、運動鞋、棒球帽",
-        "🇬🇧 英倫紳士": "英倫紳士風格，講究剪裁與質感，常見格紋、西裝、風衣、皮鞋等正式單品",
-        "🎨 巴洛克華麗": "巴洛克風格，強調誇張華麗、金色裝飾、刺繡、蕾絲等繁複元素",
-        "👣 地雷系": "日系地雷系風格，以黑色為主，搭配蕾絲、蝴蝶結、哥德元素，呈現病嬌可愛感",
-        "🎮 宅男舒適": "宅男風格，強調舒適實用，寬鬆T恤、運動褲、帽T、球鞋為主",
-        "🌊 潮流街頭": "街頭潮流風格，強調個性與品牌，oversize、球鞋、帽子、配件等",
-        "💼 都會型男": "都會型男風格，簡約俐落，商務休閒兼具，重視品質與細節",
-        "🏃 運動機能": "運動機能風格，強調功能性與科技感，防水、透氣、速乾材質",
-        "🌸 韓系清新": "韓系風格，色調柔和，oversized、寬鬆剪裁、淺色系為主",
-        "🎭 暗黑哥德": "哥德風格，以黑色為主，皮革、鉚釘、十字架等元素，神秘感十足",
-        "🌈 多元混搭": "不限定風格，AI 將根據天氣與衣櫥自由搭配出創意組合"
-    }
+    # --- 1. 使用者輸入區 ---
+    col_s, col_o = st.columns(2)
     
-    selected_style = st.selectbox(
-        "🎨 選擇穿搭風格",
-        options=list(style_options.keys()),
-        index=11,
-        help="選擇您想要的穿搭風格，AI 會根據此風格進行推薦"
-    )
-    
-    style_description = style_options[selected_style]
+    with col_s:
+        style_input = st.text_input(
+            "🎨 想要什麼風格？", 
+            placeholder="例如：日系簡約、美式復古...",
+            help="留空則由 AI 自由發揮（不限定風格）"
+        )
+        # 邏輯判斷：若沒輸入則預設不限定
+        selected_style = style_input if style_input.strip() else "不限定風格"
+
+    with col_o:
+        occasion_input = st.text_input(
+            "🏢 要去什麼場合/活動？", 
+            placeholder="例如：公司開會、約會看電影、健身房...",
+            help="預設為：外出遊玩"
+        )
+        # 邏輯判斷：若沒輸入則預設外出遊玩
+        selected_occasion = occasion_input if occasion_input.strip() else "外出遊玩"
+
+    st.caption(f"🎯 當前目標：在 **{selected_occasion}** 時，穿出 **{selected_style}**")
     
     with st.expander("ℹ️ 風格說明", expanded=False):
         st.info(style_description)
@@ -1033,28 +1031,25 @@ with tab3:
                 model = genai.GenerativeModel('gemini-2.5-flash')
                 
                 prompt = f"""
-                你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
-                
-                **天氣資訊:**
-                - 城市: {current_city}
-                - 溫度: {weather['temp']}°C (體感 {weather['feels_like']}°C)
-                - 天氣: {weather['desc']}
-                
-                **指定風格:**
-                {selected_style}
-                {style_description}
-                
-                **使用者衣櫥:**
-                {json.dumps(wardrobe_summary, ensure_ascii=False, indent=2)}
-                
-                **請提供:**
-                1. 推薦的完整穿搭組合 (從頭到腳)，必須符合指定的「{selected_style}」風格
-                2. 每件單品的選擇理由 (考慮天氣與風格)
-                3. 整體風格說明 (如何體現{selected_style}的特色)
-                4. 搭配小技巧 (針對此風格的進階建議)
-                
-                請用親切、專業的口吻回答,使用繁體中文。
-                """
+                        你是一位專業的 AI 時尚顧問。請根據以下資訊推薦今日穿搭:
+                        
+                        **情境資訊:**
+                        - 城市: {current_city}
+                        - 溫度: {weather['temp']}°C (體感 {weather['feels_like']}°C)
+                        - 天氣: {weather['desc']}
+                        - **場合/活動: {selected_occasion}** <-- 關鍵新增
+                        - **指定風格: {selected_style}** <-- 使用者自由輸入
+                        
+                        **使用者衣櫥:**
+                        {json.dumps(wardrobe_summary, ensure_ascii=False, indent=2)}
+                        
+                        **請提供:**
+                        1. 推薦的完整穿搭組合，必須符合「{selected_style}」風格並適合「{selected_occasion}」場合。
+                        2. 每件單品的選擇理由 (需綜合考慮天氣、風格特色與場合得體度)。
+                        3. 整體風格說明與針對「{selected_occasion}」的穿搭小建議。
+                        
+                        請用親切、專業的口吻回答，使用繁體中文。
+                        """
                 
                 response = model.generate_content(prompt)
                 
@@ -1238,6 +1233,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
