@@ -314,53 +314,41 @@ def parse_outfit_recommendation(ai_response, wardrobe):
 
 def generate_outfit_image(recommended_items, weather_info, api_key):
     """
-    使用 Gemini 2.5 Flash 的原生圖像生成能力
+    使用 Gemini 2.5 的原生多模態能力生成穿搭圖片
     """
     try:
         rate_limit_protection()
         genai.configure(api_key=api_key)
+        
+        # 1. 使用支援圖像生成的模型名稱
+        model = genai.GenerativeModel('gemini-2.5-flash')
 
-        # 1. 選擇具備圖像生成能力的新版模型
-        # 您也可以嘗試 'gemini-2.5-flash'
-        model = genai.GenerativeModel('gemini-2.5-flash-image')
-
-        # 2. 構建 Prompt (加入具體風格指令)
+        # 2. 構建英文 Prompt
         item_desc = ", ".join([f"{i.get('color','')} {i.get('name','')}" for i in recommended_items])
         prompt = (
             f"Generate a high-quality fashion photo of a person wearing: {item_desc}. "
             f"The overall style is {weather_info.get('selected_style', 'modern')}. "
-            f"The environment is a street in {weather_info.get('city', 'Taipei')} "
-            f"with {weather_info.get('desc', 'clear sky')} weather. "
-            f"Full body shot, professional lighting, realistic aesthetic."
+            f"Environment: A stylish street in {weather_info.get('city', 'Taipei')}. "
+            f"Lighting: Soft daylight. High resolution, 8k, realistic."
         )
 
-        with st.spinner("🚀 Gemini 正在生成穿搭視覺圖..."):
-            # 3. 關鍵：設定 response_modalities 包含 IMAGE
-            # 注意：某些 SDK 版本可能直接透過 generate_content 觸發
+        # 3. 呼叫 API (指定輸出包含 IMAGE)
+        with st.spinner("🎨 Gemini 正在為您繪製穿搭圖..."):
             response = model.generate_content(
                 prompt,
                 generation_config={"response_modalities": ["TEXT", "IMAGE"]}
             )
 
-            # 4. 解析回傳內容尋找圖片
-            generated_pil_img = None
+            # 4. 解析回傳的圖片
             for part in response.candidates[0].content.parts:
-                if hasattr(part, 'inline_data') and part.inline_data:
-                    # 將二進位數據轉回 PIL Image 物件
+                if hasattr(part, 'inline_data'):
                     img_data = part.inline_data.data
-                    generated_pil_img = Image.open(io.BytesIO(img_data))
-                    break
-                elif hasattr(part, 'image') and part.image: # 視 SDK 版本而定
-                    generated_pil_img = part.image
-                    break
-
-            if generated_pil_img:
-                return generated_pil_img, prompt
-            else:
-                return None, prompt
-
+                    return Image.open(io.BytesIO(img_data)), prompt
+            
+            return None, prompt # 若沒產出圖片則退回文字模式
+            
     except Exception as e:
-        st.error(f"Gemini 圖像生成出錯: {e}")
+        st.error(f"圖像生成失敗: {str(e)}")
         return None, None
 
 
@@ -1179,38 +1167,39 @@ with tab3:
         
         st.divider()
         
-# --- 穿搭視覺化區塊 ---
-                st.markdown("### 🎭 穿搭視覺化")
-                
+        st.markdown("### 🎭 穿搭視覺化")
+        
+        with st.spinner("正在生成穿搭示意圖..."):
+            outfit_image, image_prompt = generate_outfit_image(
+                recommended_items if recommended_items else [], 
+                st.session_state.current_weather, 
+                google_key
+            )
+            
                 # 準備傳入參數
                 weather['selected_style'] = selected_style
                 weather['city'] = current_city
 
-                # 呼叫修改後的生成函數
+                # 呼叫剛修改好的生成函數
                 outfit_image, image_prompt = generate_outfit_image(recommended_items, weather, google_key)
                 
                 if outfit_image:
                     # ✅ 如果有圖片，直接顯示
-                    st.image(outfit_image, caption=f"Gemini 2.5 根據「{selected_style}」風格生成的示意圖", use_container_width=True)
+                    st.image(outfit_image, caption="Gemini 2.5 生成的穿搭參考", use_container_width=True)
                     
                     # 製作下載按鈕
                     buf = io.BytesIO()
                     outfit_image.save(buf, format="PNG")
-                    st.download_button(
-                        label="📥 下載此穿搭建議圖",
-                        data=buf.getvalue(),
-                        file_name=f"gemini_outfit_{datetime.now().strftime('%m%d')}.png",
-                        mime="image/png"
-                    )
+                    st.download_button("📥 下載穿搭圖", buf.getvalue(), "outfit.png", "image/png")
                 else:
-                    # ❌ 如果沒有圖片，顯示原本的文字描述備案
+                    # ❌ 如果沒有圖片，顯示原本的文字描述與說明
                     if image_prompt:
                         st.info(f"📝 圖像描述已生成：\n{image_prompt}")
-                        st.warning("提示：目前模型未直接回傳圖片（可能受限於 API 區域權限），您可以複製描述至 DALL-E 3。")
-                        if st.button("📋 點此顯示代碼以便複製", key="copy_btn"):
+                        st.warning("提示：目前模型未回傳圖片，您可以複製上方描述至 DALL-E 3 生成。")
+                        if st.button("📋 複製圖像描述", key="copy_btn"):
                             st.code(image_prompt)
-
-                st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
+        
+        st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
     
     st.divider()
     st.info("""
