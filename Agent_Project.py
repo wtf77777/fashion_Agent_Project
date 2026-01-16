@@ -126,7 +126,7 @@ def batch_auto_tagging(img_bytes_list, api_key):
         # 1. 配置與模型初始化 (建議使用 Flash 模型處理多圖，速度快且省 Token)
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
-            model_name='gemini-3',
+            model_name='gemini-3-flash',
             generation_config={"response_mime_type": "application/json"}
         )
 
@@ -1220,6 +1220,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
