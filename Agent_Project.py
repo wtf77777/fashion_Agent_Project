@@ -314,46 +314,54 @@ def parse_outfit_recommendation(ai_response, wardrobe):
 
 def generate_outfit_image(recommended_items, weather_info, api_key):
     """
-    使用 Gemini 的 Imagen 3 生成穿搭人物圖像
+    使用 Gemini 2.5 Flash 的原生圖像生成能力
     """
     try:
         rate_limit_protection()
-        
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        
-        # 構建服裝描述
-        outfit_description = []
-        for item in recommended_items:
-            outfit_description.append(f"{item.get('color', '')} {item.get('name', '')}")
-        
-        outfit_text = ", ".join(outfit_description)
-        
-        # 構建 prompt
-        prompt = f"""Create a realistic fashion illustration of a stylish person wearing: {outfit_text}
 
-Style requirements:
-- Modern, clean fashion illustration style
-- Full body shot, standing pose
-- Professional fashion photography aesthetic
-- Neutral background
-- Weather context: {weather_info['temp']}°C, {weather_info['desc']}
-- 2026 fashion trends: functional style, sustainable materials
-- High quality, detailed rendering
+        # 1. 選擇具備圖像生成能力的新版模型
+        # 您也可以嘗試 'gemini-2.5-flash'
+        model = genai.GenerativeModel('gemini-2.5-flash-image')
 
-The outfit should look coordinated and fashionable."""
-        
-        # 生成圖像
-        response = model.generate_content([prompt])
-        
-        # 注意: Gemini 2.0 Flash 目前不直接支援圖像生成
-        # 這裡我們返回 None，並在 UI 中顯示文字說明
-        return None, prompt
-        
+        # 2. 構建 Prompt (加入具體風格指令)
+        item_desc = ", ".join([f"{i.get('color','')} {i.get('name','')}" for i in recommended_items])
+        prompt = (
+            f"Generate a high-quality fashion photo of a person wearing: {item_desc}. "
+            f"The overall style is {weather_info.get('selected_style', 'modern')}. "
+            f"The environment is a street in {weather_info.get('city', 'Taipei')} "
+            f"with {weather_info.get('desc', 'clear sky')} weather. "
+            f"Full body shot, professional lighting, realistic aesthetic."
+        )
+
+        with st.spinner("🚀 Gemini 正在生成穿搭視覺圖..."):
+            # 3. 關鍵：設定 response_modalities 包含 IMAGE
+            # 注意：某些 SDK 版本可能直接透過 generate_content 觸發
+            response = model.generate_content(
+                prompt,
+                generation_config={"response_modalities": ["TEXT", "IMAGE"]}
+            )
+
+            # 4. 解析回傳內容尋找圖片
+            generated_pil_img = None
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'inline_data') and part.inline_data:
+                    # 將二進位數據轉回 PIL Image 物件
+                    img_data = part.inline_data.data
+                    generated_pil_img = Image.open(io.BytesIO(img_data))
+                    break
+                elif hasattr(part, 'image') and part.image: # 視 SDK 版本而定
+                    generated_pil_img = part.image
+                    break
+
+            if generated_pil_img:
+                return generated_pil_img, prompt
+            else:
+                return None, prompt
+
     except Exception as e:
-        st.error(f"圖像生成失敗: {str(e)}")
+        st.error(f"Gemini 圖像生成出錯: {e}")
         return None, None
-
 
 
 
@@ -1173,41 +1181,37 @@ with tab3:
         st.divider()
         
         st.markdown("### 🎭 穿搭視覺化")
+
+        # 呼叫我們剛剛修改的函數
+        outfit_img, final_prompt = generate_outfit_image(recommended_items, weather, google_key)
         
-        with st.spinner("正在生成穿搭示意圖..."):
-            outfit_image, image_prompt = generate_outfit_image(
-                recommended_items if recommended_items else [], 
-                st.session_state.current_weather, 
-                google_key
-            )
+        if outfit_img:
+            st.image(outfit_img, caption="Gemini 2.5 為您生成的穿搭參考圖", use_container_width=True)
             
-            if image_prompt:
-                st.info(f"🔍 圖像描述: {image_prompt}")
-                st.warning("""
-                ⚠️ **功能說明**: 
-                - Gemini 2.5 Flash 目前不支持直接圖像生成
-                - 建議使用以下服務生成穿搭人物圖:
-                  1. 複製上方的圖像描述
-                  2. 前往 [DALL-E 3](https://openai.com/dall-e-3) 或 [Midjourney](https://www.midjourney.com/)
-                  3. 貼上描述即可生成專屬穿搭圖
-                """)
-                
-                if st.button("📋 複製圖像描述", use_container_width=True):
-                    st.code(image_prompt, language=None)
-                    st.success("✅ 請手動複製上方文字到圖像生成服務")
-        
-        st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
-    
-    st.divider()
-    st.info("""
-    **💡 推薦功能說明:**
-    - 結合即時天氣與您的衣櫥
-    - 考慮 2026 流行趨勢
-    - 提供個人化穿搭建議
-    - ✨ 顯示推薦衣服的實際圖片
-    - ✨ 生成穿搭人物圖像描述
-    - 使用 Gemini 2.5 Flash 模型
-    """)
+            # 增加下載按鈕方便使用者保存
+            buf = io.BytesIO()
+            outfit_img.save(buf, format="PNG")
+            st.download_button(
+                label="📥 下載生成的穿搭圖",
+                data=buf.getvalue(),
+                file_name="gemini_outfit.png",
+                mime="image/png"
+            )
+        else:
+            st.warning("目前模型未能直接生成圖像，以下是生成的 Prompt 供參考：")
+            st.code(final_prompt)
+                st.success("穿搭推薦完成! 祝您有美好的一天 ✨")
+            
+            st.divider()
+            st.info("""
+            **💡 推薦功能說明:**
+            - 結合即時天氣與您的衣櫥
+            - 考慮 2026 流行趨勢
+            - 提供個人化穿搭建議
+            - ✨ 顯示推薦衣服的實際圖片
+            - ✨ 生成穿搭人物圖像描述
+            - 使用 Gemini 2.5 Flash 模型
+            """)
 st.divider()
 with st.expander("📋 Supabase 資料表結構說明"):
     st.code("""
@@ -1238,6 +1242,7 @@ CREATE INDEX idx_wardrobe_hash ON my_wardrobe(user_id, image_hash);
     """, language="sql")
 
 st.caption("Made with ❤️ by AI Fashion Agent v2.0 | Powered by Gemini 2.0 Flash & Supabase")
+
 
 
 
